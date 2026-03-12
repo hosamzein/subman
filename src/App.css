@@ -151,6 +151,16 @@ body {
   scrollbar-width: thin;
 }
 
+.app-footer {
+  padding: 1.5rem;
+  text-align: center;
+  color: #7f8c8d;
+  font-size: 0.9rem;
+  border-top: 1px solid #eee;
+  background: white;
+  flex-shrink: 0;
+}
+
 /* Dashboard Elements */
 .header-actions {
   display: flex;

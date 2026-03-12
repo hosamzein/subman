@@ -330,6 +330,9 @@ function App() {
             </div>
           )}
         </div>
+        <footer className="app-footer">
+          جميع الحقوق محفوظة &copy; {new Date().getFullYear()} حسام زين
+        </footer>
       </main>
     </div>
   );
