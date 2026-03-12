@@ -26,21 +26,28 @@ interface Notification {
   id?: number;
   message: string;
   type: 'info' | 'warning' | 'danger';
-  createdAt: number; // Timestamp for easy filtering
+  createdAt: number;
+}
+
+interface Setting {
+  id: string; // e.g., 'whatsapp_message'
+  value: string;
 }
 
 const db = new Dexie('SubmanDB') as Dexie & {
   subscriptions: EntityTable<Subscription, 'id'>;
   users: EntityTable<User, 'id'>;
   notifications: EntityTable<Notification, 'id'>;
+  settings: EntityTable<Setting, 'id'>;
 };
 
 // Schema declaration:
-db.version(6).stores({
+db.version(7).stores({
   subscriptions: '++id, service, name, email, whatsapp, facebook, endDate',
   users: '++id, &username',
-  notifications: '++id, createdAt'
+  notifications: '++id, createdAt',
+  settings: 'id'
 });
 
-export type { Subscription, User, Notification };
+export type { Subscription, User, Notification, Setting };
 export { db };
