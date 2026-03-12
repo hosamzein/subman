@@ -14,6 +14,7 @@ interface Subscription {
   name: string;
   email: string;
   facebook: string;
+  countryCode: string; // New mandatory field
   whatsapp: string;
   startDate: string;
   endDate: string;
@@ -30,7 +31,7 @@ interface Notification {
 }
 
 interface Setting {
-  id: string; // e.g., 'whatsapp_message'
+  id: string;
   value: string;
 }
 
@@ -42,7 +43,7 @@ const db = new Dexie('SubmanDB') as Dexie & {
 };
 
 // Schema declaration:
-db.version(7).stores({
+db.version(8).stores({
   subscriptions: '++id, service, name, email, whatsapp, facebook, endDate',
   users: '++id, &username',
   notifications: '++id, createdAt',

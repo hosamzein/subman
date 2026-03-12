@@ -10,6 +10,13 @@ import './App.css';
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity'];
 const COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#9b59b6'];
+const COUNTRY_CODES = [
+  { code: '20', label: 'مصر (+20)' },
+  { code: '966', label: 'السعودية (+966)' },
+  { code: '971', label: 'الإمارات (+971)' },
+  { code: '965', label: 'الكويت (+965)' },
+  { code: '964', label: 'العراق (+964)' },
+];
 
 type View = 'login' | 'dashboard' | 'subscribers' | 'users' | 'notifications' | 'settings';
 
@@ -31,7 +38,7 @@ function App() {
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
 
   const [formData, setFormData] = useState({
-    service: 'Grok', name: '', email: '', facebook: '', whatsapp: '',
+    service: 'Grok', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '',
     startDate: '', endDate: '', payment: 0, workspace: ''
   });
   const [userFormData, setUserFormData] = useState({ username: '', password: '', role: 'editor' as const });
@@ -71,7 +78,8 @@ function App() {
 
   const sendWhatsApp = (sub: any) => {
     let msg = waMessage.replace('{name}', sub.name).replace('{service}', sub.service).replace('{date}', sub.endDate);
-    const url = `https://web.whatsapp.com/send?phone=${sub.whatsapp}&text=${encodeURIComponent(msg)}`;
+    const fullNumber = `${sub.countryCode}${sub.whatsapp.replace(/^0+/, '')}`; // Ensure no leading zeros
+    const url = `https://web.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
 
@@ -83,7 +91,7 @@ function App() {
 
   const getStatus = (endDate: string) => {
     const end = new Date(endDate);
-    const diff = Math.ceil((end.getTime() - new Date().getTime()) / (1000*60*60*24));
+    const diff = Math.ceil((end.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
     if (diff < 0) return { label: 'منتهي', class: 'badge-danger', needsRenewal: true };
     if (diff <= 2) return { label: 'تجديد قريباً', class: 'badge-warning', needsRenewal: true };
     return { label: 'نشط', class: 'badge-success', needsRenewal: false };
@@ -130,7 +138,7 @@ function App() {
           <h1>منصة إدارة الإشتراكات</h1>
           <form onSubmit={handleLogin}>
             <input type="text" placeholder="اسم المستخدم" value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} />
-            <input type="password" placeholder="كلمة المرور" value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} />
+            <input type="password" placeholder="كلمة المرور" value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
             <button type="submit" className="btn-primary">دخول</button>
           </form>
         </div>
@@ -218,7 +226,7 @@ function App() {
                    e.preventDefault(); 
                    if (editingId) await db.subscriptions.update(editingId, formData); 
                    else await db.subscriptions.add({...formData, createdAt: new Date().toLocaleString('ar-EG')});
-                   setFormData({service:'Grok', name:'', email:'', facebook:'', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
+                   setFormData({service:'Grok', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
                    setEditingId(null); setSuccessMessage('تم الحفظ!'); setTimeout(()=>setSuccessMessage(''), 3000);
                  }} className="admin-form">
                    <div className="form-row">
@@ -227,7 +235,12 @@ function App() {
                    </div>
                    <div className="form-row">
                      <input type="email" placeholder="البريد" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-                     <input type="text" placeholder="واتساب" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} />
+                     <div style={{display:'flex', gap:'5px'}}>
+                        <select style={{width:'120px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
+                          {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                        </select>
+                        <input type="text" placeholder="رقم الواتساب" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} required />
+                     </div>
                    </div>
                    <div className="form-row">
                      <input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} required />
@@ -247,7 +260,7 @@ function App() {
                     {filteredSubscriptions.map(s => (
                       <tr key={s.id}>
                         <td>#{s.id}</td><td>{s.service}</td>
-                        <td><div>{s.name}</div><small>{s.whatsapp}</small></td>
+                        <td><div>{s.name}</div><small>+{s.countryCode} {s.whatsapp}</small></td>
                         <td><span className={`badge ${getStatus(s.endDate).class}`}>{s.endDate}</span></td>
                         <td>
                           <button onClick={() => sendWhatsApp(s)} className="btn-wa" title="إرسال واتساب">💬</button>
