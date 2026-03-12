@@ -79,7 +79,7 @@ function App() {
   const sendWhatsApp = (sub: any) => {
     let msg = waMessage.replace('{name}', sub.name).replace('{service}', sub.service).replace('{date}', sub.endDate);
     const fullNumber = `${sub.countryCode}${sub.whatsapp.replace(/^0+/, '')}`; // Ensure no leading zeros
-    const url = `https://web.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(msg)}`;
+    const url = `https://web.whatsapp.com/send?phone=+${fullNumber}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
 
