@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
+import * as XLSX from 'xlsx';
 import { 
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -128,6 +129,25 @@ function App() {
     }
   };
 
+  const exportToExcel = () => {
+    if (!subscriptions) return;
+    const ws = XLSX.utils.json_to_sheet(subscriptions.map(s => ({
+        'ID': s.id,
+        'الخدمة': s.service,
+        'الاسم': s.name,
+        'البريد': s.email,
+        'واتساب': s.whatsapp,
+        'تاريخ البدء': s.startDate,
+        'تاريخ الانتهاء': s.endDate,
+        'المبلغ': s.payment,
+        'مساحة العمل': s.workspace,
+        'تاريخ الإضافة': s.createdAt
+    })));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "الاشتراكات");
+    XLSX.writeFile(wb, `تقرير_سوبمان_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   if (!isLoggedIn) {
     return (
       <div className="login-container">
@@ -223,6 +243,7 @@ function App() {
                 <div className="filter-controls">
                   <input type="text" placeholder="بحث سريع..." className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                   <label className="checkbox-filter"><input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} /><span>تجديد فقط</span></label>
+                  <button onClick={exportToExcel} className="btn-excel" title="تصدير إكسل">📥</button>
                 </div>
               </div>
               {successMessage && <div className="success-banner">{successMessage}</div>}
