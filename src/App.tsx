@@ -45,6 +45,13 @@ function App() {
   const [waMessage, setWaMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
+  // Date Formatter: YYYY-MM-DD -> MM/DD/YYYY
+  const formatDateDisplay = (dateStr: string) => {
+    if (!dateStr) return '';
+    const [year, month, day] = dateStr.split('-');
+    return `${month}/${day}/${year}`;
+  };
+
   useEffect(() => {
     if (waSetting) setWaMessage(waSetting.value);
     else setWaMessage("مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.");
@@ -77,8 +84,8 @@ function App() {
   };
 
   const sendWhatsApp = (sub: any) => {
-    let msg = waMessage.replace('{name}', sub.name).replace('{service}', sub.service).replace('{date}', sub.endDate);
-    const fullNumber = `${sub.countryCode}${sub.whatsapp.replace(/^0+/, '')}`; // Ensure no leading zeros
+    let msg = waMessage.replace('{name}', sub.name).replace('{service}', sub.service).replace('{date}', formatDateDisplay(sub.endDate));
+    const fullNumber = `${sub.countryCode}${sub.whatsapp.replace(/^0+/, '')}`;
     const url = `https://api.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(msg)}`;
     window.open(url, '_blank');
   };
@@ -170,9 +177,14 @@ function App() {
               <div className="header-actions">
                 <h2>لوحة التحكم</h2>
                 <div className="dashboard-filters">
-                  <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} />
-                  <span>إلى</span>
-                  <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} />
+                  <div className="date-input-group">
+                    <label>من:</label>
+                    <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} />
+                  </div>
+                  <div className="date-input-group">
+                    <label>إلى:</label>
+                    <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} />
+                  </div>
                 </div>
               </div>
               <div className="stats-grid">
@@ -217,7 +229,7 @@ function App() {
                 <div className="filter-controls">
                   <input type="text" placeholder="بحث..." className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
                   <label className="checkbox-filter"><input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} /><span>تجديد</span></label>
-                  <button onClick={() => { if(subscriptions) { const ws = XLSX.utils.json_to_sheet(subscriptions); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, "Report.xlsx"); } }} className="btn-excel">📥</button>
+                  <button onClick={() => { if(subscriptions) { const ws = XLSX.utils.json_to_sheet(subscriptions.map(s => ({...s, startDate: formatDateDisplay(s.startDate), endDate: formatDateDisplay(s.endDate)}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, "Report.xlsx"); } }} className="btn-excel">📥</button>
                 </div>
               </div>
               {successMessage && <div className="success-banner">{successMessage}</div>}
@@ -239,12 +251,24 @@ function App() {
                         <select style={{width:'120px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
                           {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
                         </select>
-                        <input type="text" placeholder="رقم الواتساب" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value})} required />
+                        <input 
+                          type="text" 
+                          placeholder="رقم الواتساب" 
+                          value={formData.whatsapp} 
+                          onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} 
+                          required 
+                        />
                      </div>
                    </div>
                    <div className="form-row">
-                     <input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} required />
-                     <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required />
+                     <div className="date-input-group">
+                        <label>تاريخ البدء:</label>
+                        <input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} required />
+                     </div>
+                     <div className="date-input-group">
+                        <label>تاريخ الانتهاء:</label>
+                        <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required />
+                     </div>
                    </div>
                    <div className="form-row">
                      <input type="number" placeholder="المبلغ" value={formData.payment} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
@@ -255,13 +279,13 @@ function App() {
               </div>
               <div className="table-responsive">
                 <table className="admin-table">
-                  <thead><tr><th>ID</th><th>الخدمة</th><th>المشترك</th><th>الانتهاء</th><th>إجراءات</th></tr></thead>
+                  <thead><tr><th>ID</th><th>الخدمة</th><th>المشترك</th><th>الانتهاء (MM/DD/YYYY)</th><th>إجراءات</th></tr></thead>
                   <tbody>
                     {filteredSubscriptions.map(s => (
                       <tr key={s.id}>
                         <td>#{s.id}</td><td>{s.service}</td>
                         <td><div>{s.name}</div><small>+{s.countryCode} {s.whatsapp}</small></td>
-                        <td><span className={`badge ${getStatus(s.endDate).class}`}>{s.endDate}</span></td>
+                        <td><span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span></td>
                         <td>
                           <button onClick={() => sendWhatsApp(s)} className="btn-wa" title="إرسال واتساب">💬</button>
                           <button onClick={() => { setFormData(s); setEditingId(s.id!); window.scrollTo(0,0); }} className="btn-edit">✏️</button>
