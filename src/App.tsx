@@ -507,11 +507,11 @@ function App() {
 
                   </div>
 
-                  {successMessage && <div style={{ background: '#000', color: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
+                  {successMessage && <div style={{ background: '#000', color: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center', fontWeight: 'bold' }}>{successMessage}</div>}
                   
-                   <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '16px', overflow: 'hidden' }}>
-                     {/* Form Section */}
-                     <div style={{ padding: '2rem', borderBottom: '1px solid #f0f0f0' }}>
+                  <div className="main-content-card">
+                    {/* Form Section */}
+                    <div style={{ padding: '2.5rem', borderBottom: '1px solid #f0f0f0' }}>
                        <form onSubmit={async (e) => { 
                          e.preventDefault(); 
                          if (editingId) { await db.subscriptions.update(editingId, formData); setSuccessMessage(t.updated); }
@@ -520,55 +520,83 @@ function App() {
                          setEditingId(null); setTimeout(()=>setSuccessMessage(''), 3000);
                        }} className="admin-form">
                          <div className="form-row">
-                           <select value={formData.service} onChange={e => {
-                               const newSvc = e.target.value;
-                               setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
-                             }} required style={{ borderRadius: '8px' }}>
-                             {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                           </select>
-                           <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} style={{ borderRadius: '8px' }} />
-                           <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required style={{ borderRadius: '8px' }} />
-                           <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required style={{ borderRadius: '8px' }} />
-                         </div>
-                         <div className="form-row" style={{ marginTop: '1rem' }}>
-                           <div style={{display:'flex', gap:'0', direction:'ltr', flex: 1}}>
-                              <select style={{width:'auto', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
-                                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                              </select>
-                              <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required style={{flex: 1, borderTopRightRadius: '8px', borderBottomRightRadius: '8px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0}} />
+                           <div className="input-field-group">
+                             <label>{t.service}</label>
+                             <select value={formData.service} onChange={e => {
+                                 const newSvc = e.target.value;
+                                 setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
+                               }} required>
+                               {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+                             </select>
                            </div>
-                           <select value={formData.duration || 'monthly'} onChange={e => {
-                               const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
-                               if (formData.startDate) {
-                                 const newEnd = calculateEndDate(formData.startDate, dur);
-                                 setFormData({...formData, duration: dur, endDate: newEnd});
-                               } else setFormData({...formData, duration: dur});
-                             }} required style={{ flex: 1, borderRadius: '8px' }}>
-                               <option value="monthly">{t.monthly}</option>
-                               <option value="quarterly">{t.quarterly}</option>
-                               <option value="yearly">{t.yearly}</option>
-                           </select>
-                           <div className="date-input-group" style={{ flex: 1 }}>
-                             <label>{t.startDate}:</label>
+                           <div className="input-field-group">
+                             <label>{t.category}</label>
+                             <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} />
+                           </div>
+                           <div className="input-field-group">
+                             <label>{t.name}</label>
+                             <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                           </div>
+                           <div className="input-field-group">
+                             <label>{t.email}</label>
+                             <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                           </div>
+                         </div>
+                         <div className="form-row" style={{ marginTop: '1.5rem' }}>
+                           <div className="input-field-group">
+                              <label>{t.whatsapp}</label>
+                              <div style={{display:'flex', gap:'0.5rem', direction:'ltr'}}>
+                                 <select style={{width:'80px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
+                                   {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+                                 </select>
+                                 <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required />
+                              </div>
+                           </div>
+                           <div className="input-field-group">
+                             <label>{t.duration === 'Duration' ? 'Duration' : 'المدة'}</label> 
+                             <select value={formData.duration || 'monthly'} onChange={e => {
+                                 const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
+                                 if (formData.startDate) {
+                                   const newEnd = calculateEndDate(formData.startDate, dur);
+                                   setFormData({...formData, duration: dur, endDate: newEnd});
+                                 } else setFormData({...formData, duration: dur});
+                               }} required>
+                                 <option value="monthly">{t.monthly}</option>
+                                 <option value="quarterly">{t.quarterly}</option>
+                                 <option value="yearly">{t.yearly}</option>
+                             </select>
+                           </div>
+                           <div className="input-field-group">
+                             <label>{t.startDate}</label>
                              <input type="date" value={formData.startDate} onChange={e => {
                                const strt = e.target.value;
                                const dur = formData.duration || 'monthly';
                                if (strt) setFormData({...formData, startDate: strt, endDate: calculateEndDate(strt, dur)});
                                else setFormData({...formData, startDate: strt});
-                             }} required style={{ borderRadius: '8px' }} />
+                             }} required />
                            </div>
-                           <div className="date-input-group" style={{ flex: 1 }}>
-                             <label>{t.endDate}:</label>
-                             <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required style={{ borderRadius: '8px' }} />
+                           <div className="input-field-group">
+                             <label>{t.endDate}</label>
+                             <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required />
                            </div>
                          </div>
-                         <div className="form-row" style={{ marginTop: '1rem' }}>
-                           <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required style={{ flex: 1, borderRadius: '8px' }} />
-                           <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} style={{ flex: 1, borderRadius: '8px' }} />
-                           <div style={{ flex: 1, display: 'flex', gap: '1rem' }}>
-                             <button type="submit" className="btn-primary" style={{ flex: 1, margin: 0, borderRadius: '8px' }}>{editingId ? t.update : t.add}</button>
-                             {editingId && <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ flex: 1, margin: 0, borderRadius: '8px' }}>{t.cancel}</button>}
+                         <div className="form-row" style={{ marginTop: '1.5rem' }}>
+                           <div className="input-field-group">
+                             <label>{t.amount}</label>
+                             <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
                            </div>
+                           <div className="input-field-group" style={{ flex: 2 }}>
+                             <label>{t.workspace}</label>
+                             <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
+                           </div>
+                           <div className="input-field-group" style={{ flex: 0.5, justifyContent: 'flex-end', display: 'flex' }}>
+                             <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
+                           </div>
+                           {editingId && (
+                             <div className="input-field-group" style={{ flex: 0.5, justifyContent: 'flex-end', display: 'flex' }}>
+                               <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ margin: 0, height: '50px' }}>{t.cancel}</button>
+                             </div>
+                           )}
                          </div>
                        </form>
                      </div>
@@ -576,27 +604,45 @@ function App() {
                   {/* Table Section */}
                   <div className="table-responsive">
                     <table className="admin-table">
-                      <thead><tr><th>{t.id}</th><th>{t.service}</th><th>{t.name}</th><th>{t.endDate}</th><th style={{ textAlign: 'center' }}>{t.actions}</th></tr></thead>
+                      <thead>
+                        <tr>
+                          <th>ID</th>
+                          <th>{t.service}</th>
+                          <th>{t.name}</th>
+                          <th>{t.endDate}</th>
+                          <th style={{ textAlign: 'center' }}>{t.actions}</th>
+                        </tr>
+                      </thead>
                       <tbody>
                         {filteredSubscriptions.map(s => (
                           <tr key={s.id}>
-                            <td>#{s.id}</td><td><div style={{fontWeight: 700}}>{s.service}</div><small style={{color: 'var(--text-muted)'}}>{s.category || SERVICE_CATEGORIES[s.service]}</small></td>
-                            <td><div>{s.name}</div><small>+{s.countryCode} {s.whatsapp}</small></td>
-                            <td><span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span>
-                            <div style={{marginTop: '4px', fontSize: '0.75rem', color: 'var(--text-muted)'}}>{s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}</div>
+                            <td style={{ fontWeight: 600, color: '#a0a0a0' }}>#{s.id}</td>
+                            <td>
+                              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
+                              <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>{s.category || SERVICE_CATEGORIES[s.service]}</div>
+                            </td>
+                            <td>
+                              <div style={{ fontWeight: 600 }}>{s.name}</div>
+                              <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>+{s.countryCode} {s.whatsapp}</div>
+                            </td>
+                            <td>
+                              <span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span>
+                              <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#a0a0a0' }}>
+                                {s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}
+                              </div>
                             </td>
                             <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                               <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
                               <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
-                              <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0,0); }} title={t.update}>✏️</button>
-                              <button onClick={() => { if(window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
+                              <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
+                              <button onClick={() => { if (window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                   </div>
+                  </div>
                 </div>
               )}
 
