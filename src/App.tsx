@@ -190,7 +190,6 @@ function App() {
   const [successMessage, setSuccessMessage] = useState('');
 
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showOnlyRenewals, setShowOnlyRenewals] = useState(false);
 
@@ -206,8 +205,6 @@ function App() {
     name: '', email: '', facebook: '', countryCode: '20', whatsapp: '',
     startDate: '', endDate: '', payment: 0, workspace: ''
   });
-  const [userFormData, setUserFormData] = useState({ username: '', password: '', role: 'editor' as 'admin' | 'editor' });
-
   const t = translations[lang];
 
   useEffect(() => {
@@ -233,7 +230,7 @@ function App() {
     };
     fetchSession();
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (session) {
         setIsLoggedIn(true);
         setCurrentUser(session.user);
@@ -276,7 +273,6 @@ function App() {
       if (settings) setWaMessage(settings.value);
       else setWaMessage("مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.");
 
-      const today = new Date();
       const { data: notifs } = await supabase.from('notifications').select('*').eq('user_id', currentUser.id).order('createdAt', { ascending: false });
       setNotifications(notifs || []);
     };
