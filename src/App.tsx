@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, supabaseAuthRedirectUrl } from './supabaseClient';
 import type {
@@ -109,9 +109,7 @@ const translations = {
     alreadyHave: "لديك حساب بالفعل؟ دخول",
     needAccount: "ليس لديك حساب؟ سجل الآن",
     googleLogin: "الدخول بواسطة جوجل",
-    useMail: "استخدم بريدك الإلكتروني",
-    hideMail: "إخفاء البريد الإلكتروني",
-    emailLoginHint: "أو استخدم بريدك الإلكتروني بخطوات سريعة",
+    mailHint: "استخدم بريدك الإلكتروني عبر تسجيل الدخول بجوجل",
     status: "الحالة",
     approve: "تفعيل",
     reject: "رفض",
@@ -191,9 +189,7 @@ const translations = {
     alreadyHave: "Already have an account? Login",
     needAccount: "Don't have an account? Register",
     googleLogin: "Login with Google",
-    useMail: "Use your email",
-    hideMail: "Hide email form",
-    emailLoginHint: "Or continue with your email in a simple form",
+    mailHint: "Use your email account with Google sign-in",
     status: "Status",
     approve: "Approve",
     reject: "Reject",
@@ -210,7 +206,6 @@ const translations = {
 type Language = keyof typeof translations;
 type Theme = 'dark' | 'light';
 type View = 'login' | 'dashboard' | 'subscribers' | 'users' | 'notifications' | 'settings';
-type AuthMode = 'login' | 'register';
 
 type SubscriptionFormData = Pick<
   Subscription,
@@ -242,7 +237,7 @@ const getStoredLanguage = (): Language => {
 
 const getStoredTheme = (): Theme => {
   const storedTheme = localStorage.getItem('subman_theme');
-  return storedTheme === 'light' ? 'light' : 'dark';
+  return storedTheme === 'dark' ? 'dark' : 'light';
 };
 
 const createDefaultFormData = (): SubscriptionFormData => ({
@@ -368,10 +363,7 @@ function App() {
   const [lang, setLang] = useState<Language>(getStoredLanguage);
   const [theme, setTheme] = useState<Theme>(getStoredTheme);
   const [currentView, setCurrentView] = useState<View>('dashboard');
-  const [authMode, setAuthMode] = useState<AuthMode>('login');
-  const [showEmailAuth, setShowEmailAuth] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginData, setLoginData] = useState({ email: '', pass: '' });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [userProfile, setUserProfile] = useState<Profile | null>(null);
   const userProfileRef = useRef<Profile | null>(null);
@@ -583,41 +575,6 @@ function App() {
     };
   }, [currentUser, isLoggedIn, userProfile]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const { error } = await supabase.auth.signInWithPassword({
-      email: loginData.email,
-      password: loginData.pass,
-    });
-
-    if (error) alert(error.message);
-  };
-
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    const { data, error } = await supabase.auth.signUp({
-      email: loginData.email,
-      password: loginData.pass,
-    });
-
-    if (error) {
-      alert(error.message);
-      return;
-    }
-
-    if (data.user) {
-      await supabase.from('profiles').upsert({
-        id: data.user.id,
-        username: loginData.email.split('@')[0],
-        role: 'user',
-        status: 'pending',
-      });
-      alert(t.pendingMsg);
-    }
-  };
-
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -627,11 +584,6 @@ function App() {
     });
 
     if (error) alert(error.message);
-  };
-
-  const toggleEmailAuth = () => {
-    setShowEmailAuth((current) => !current);
-    setAuthMode('login');
   };
 
   const handleLogout = async () => {
@@ -813,38 +765,12 @@ function App() {
             <h1>{t.title}</h1>
             <div className="login-intro">
               <p className="login-eyebrow">{lang === 'ar' ? 'الدخول الأسرع' : 'Fastest sign in'}</p>
-              <p className="login-subtitle">{lang === 'ar' ? 'ابدأ مباشرة عبر جوجل، أو افتح نموذج البريد عند الحاجة.' : 'Start instantly with Google, or open the email form only when needed.'}</p>
+              <p className="login-subtitle">{lang === 'ar' ? 'تسجيل الدخول يتم الآن عبر جوجل فقط لتجربة أسرع وأكثر ثباتاً.' : 'Sign in now runs through Google only for a faster, more reliable experience.'}</p>
             </div>
             <button type="button" onClick={handleGoogleLogin} className="google-btn login-google-primary">
               <span style={{ fontSize: '1.2rem' }}>G</span> {t.googleLogin}
             </button>
-            <button type="button" className="mail-link-btn" onClick={toggleEmailAuth}>
-              {showEmailAuth ? t.hideMail : t.useMail}
-            </button>
-            {showEmailAuth && (
-              <div className="email-auth-panel">
-                <p className="email-auth-hint">{t.emailLoginHint}</p>
-                {authMode === 'login' ? (
-                  <form onSubmit={handleLogin} className="login-form">
-                    <div className="login-inputs-row">
-                      <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
-                      <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
-                    </div>
-                    <button type="submit" className="login-submit-btn">{t.enter}</button>
-                    <p className="auth-switch" onClick={() => setAuthMode('register')}>{t.needAccount}</p>
-                  </form>
-                ) : (
-                  <form onSubmit={handleSignUp} className="login-form">
-                    <div className="login-inputs-row">
-                      <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
-                      <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
-                    </div>
-                    <button type="submit" className="login-submit-btn">{t.register}</button>
-                    <p className="auth-switch" onClick={() => setAuthMode('login')}>{t.alreadyHave}</p>
-                  </form>
-                )}
-              </div>
-            )}
+            <p className="mail-link-btn">{t.mailHint}</p>
           </div>
         </div>
       ) : isLoadingProfile ? (
@@ -859,7 +785,7 @@ function App() {
           <div className="pending-card animate-fade">
             <div style={{ fontSize: '3.5rem', marginBottom: '1.5rem' }}>⏳</div>
             <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem' }}>{t.pendingTitle}</h2>
-            <p style={{ fontSize: '1.1rem', color: '#666', lineHeight: 1.6, marginBottom: '2.5rem' }}>
+            <p style={{ fontSize: '1.1rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: '2.5rem' }}>
               {t.pendingMsg}
             </p>
             <button onClick={handleLogout} className="btn-secondary">
