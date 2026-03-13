@@ -359,6 +359,15 @@ const getAuthMethodLabel = (method: UserAuthMethod, dictionary: typeof translati
   return dictionary.unknownMethod;
 };
 
+const getAuthMethodIcon = (method: UserAuthMethod) => {
+  if (method === 'google') return 'G';
+  if (method === 'email+google') return 'G+';
+  if (method === 'email') return '@';
+  return '?';
+};
+
+const getAuthMethodClassName = (method: UserAuthMethod) => `badge-auth badge-auth-${method.replace('+', '-')}`;
+
 function App() {
   const [lang, setLang] = useState<Language>(getStoredLanguage);
   const [theme, setTheme] = useState<Theme>(getStoredTheme);
@@ -842,8 +851,8 @@ function App() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginBottom: '2rem' }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                  <div className="dashboard-overview-grid">
+                    <div className="stats-column">
                       <div className="stat-card income" style={{ margin: 0 }}>
                         <h3>{t.periodIncome}</h3>
                         <p>{analytics.periodIncome} {lang === 'ar' ? 'ج.م' : 'EGP'}</p>
@@ -856,7 +865,7 @@ function App() {
                       </div>
                     </div>
 
-                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                    <div className="charts-grid">
                       <Suspense
                         fallback={
                           <>
@@ -915,7 +924,7 @@ function App() {
                   </div>
                   <p className="view-banner">{lang === 'ar' ? 'ابحث، صفِّ النتائج، ثم صدّر أو عدّل البيانات مباشرة.' : 'Search, filter, export, and edit subscriber data directly from this view.'}</p>
 
-                  <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
+                  <div className="subscribers-toolbar">
                     <div style={{ flex: 1 }}>
                       <input
                         type="text"
@@ -1035,7 +1044,7 @@ function App() {
                             </div>
                             <div className="input-field-group">
                               <label>{t.whatsapp}</label>
-                              <div style={{ display: 'flex', gap: '0.5rem', direction: 'ltr' }}>
+                              <div className="phone-field-row">
                                 <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })} required>
                                   {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
                                 </select>
@@ -1117,7 +1126,7 @@ function App() {
                             </span>
                           </td>
                           <td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.userLabel}</span></td>
-                          <td><span className="badge badge-service">{getAuthMethodLabel(u.authMethod, t)}</span></td>
+                          <td><span className={`badge ${getAuthMethodClassName(u.authMethod)}`}>{getAuthMethodIcon(u.authMethod)} {getAuthMethodLabel(u.authMethod, t)}</span></td>
                           <td>
                             <div className="user-actions">
                               {u.status === 'pending' && (
