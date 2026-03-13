@@ -452,12 +452,12 @@ function App() {
 
               {currentView === 'subscribers' && (
                 <div className="subscribers-view animate-fade">
-                  <div className="header-actions" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2>{t.manageSubs}</h2>
+                  <div className="header-actions" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{t.manageSubs}</h2>
                   </div>
 
                   {/* Elegant Search and Filter Bar */}
-                  <div style={{ display: 'flex', flexDirection: 'row', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
                     
                     {/* Search Field */}
                     <div style={{ flex: 1 }}>
@@ -467,7 +467,7 @@ function App() {
                         className="search-input-refined" 
                         value={searchQuery} 
                         onChange={e => setSearchQuery(e.target.value)} 
-                        style={{ width: '100%', margin: 0 }}
+                        style={{ width: '100%', margin: 0, padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid #e0e0e0', backgroundColor: '#fff', color: '#000' }}
                       />
                     </div>
 
@@ -478,110 +478,105 @@ function App() {
                         style={{ 
                           display: 'inline-flex', 
                           alignItems: 'center', 
-                          gap: '0.75rem', 
+                          gap: '0.5rem', 
                           cursor: 'pointer', 
-                          padding: '0.6rem 1.2rem', 
+                          padding: '0.6rem 1rem', 
                           borderRadius: '8px', 
-                          background: 'var(--bg-card)', 
-                          border: '1px solid var(--border-color)', 
+                          background: '#fff', 
+                          border: '1px solid #e0e0e0', 
                           transition: 'all 0.2s',
                           userSelect: 'none',
-                          height: '50px' // Match roughly with the search input
+                          color: '#000'
                         }}
                       >
                         <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>📥</span>
-                        <span style={{ fontSize: '1rem', fontWeight: 600 }}>{t.renewalOnly}</span>
+                        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t.renewalOnly}</span>
                         <input 
                           type="checkbox" 
                           checked={showOnlyRenewals} 
                           onChange={e => setShowOnlyRenewals(e.target.checked)} 
-                          style={{ margin: 0, width: '18px', height: '18px', cursor: 'pointer', marginLeft: '0.5rem' }}
+                          style={{ margin: 0, cursor: 'pointer', marginLeft: '0.5rem' }}
                         />
                       </label>
                     </div>
 
                     {/* Export Button */}
-                    <button onClick={handleExport} className="btn-primary" style={{ height: '50px', padding: '0 1.5rem', width: 'auto' }} title={t.export}>
+                    <button onClick={handleExport} className="btn-primary" style={{ padding: '0.6rem 1.5rem', width: 'auto', borderRadius: '8px', margin: 0 }} title={t.export}>
                       📊 {t.export}
                     </button>
 
                   </div>
 
-                  {successMessage && <div className="success-banner">{successMessage}</div>}
+                  {successMessage && <div style={{ background: '#000', color: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
                   
-                   <div className="form-card">
-                     <form onSubmit={async (e) => { 
-                       e.preventDefault(); 
-                       if (editingId) { await db.subscriptions.update(editingId, formData); setSuccessMessage(t.updated); }
-                       else { await db.subscriptions.add({...formData, createdAt: new Date().toLocaleString()}); setSuccessMessage(t.saved); }
-                       setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
-                       setEditingId(null); setTimeout(()=>setSuccessMessage(''), 3000);
-                     }} className="admin-form">
-                       <div className="form-row">
-                         <div style={{ flex: 1 }}>
-                           <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{t.service}</label>
+                   <div style={{ background: '#fff', border: '1px solid #e0e0e0', borderRadius: '16px', overflow: 'hidden' }}>
+                     {/* Form Section */}
+                     <div style={{ padding: '2rem', borderBottom: '1px solid #f0f0f0' }}>
+                       <form onSubmit={async (e) => { 
+                         e.preventDefault(); 
+                         if (editingId) { await db.subscriptions.update(editingId, formData); setSuccessMessage(t.updated); }
+                         else { await db.subscriptions.add({...formData, createdAt: new Date().toLocaleString()}); setSuccessMessage(t.saved); }
+                         setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
+                         setEditingId(null); setTimeout(()=>setSuccessMessage(''), 3000);
+                       }} className="admin-form">
+                         <div className="form-row">
                            <select value={formData.service} onChange={e => {
-                             const newSvc = e.target.value;
-                             setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
-                           }} required>{SERVICES.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                         </div>
-                         <div style={{ flex: 1 }}>
-                           <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '0.4rem' }}>{t.category}</label>
-                           <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} />
-                         </div>
-                       </div>
-                       <div className="form-row">
-                         <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required style={{ flex: 1 }} />
-                         <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required style={{ flex: 1 }} />
-                       </div>
-                       <div className="form-row">
-                         <div style={{display:'flex', gap:'5px', direction:'ltr', flex: 1}}>
-                            <select style={{width:'100px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
-                              {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                            </select>
-                            <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required style={{flex: 1}} />
-                         </div>
-                         <div style={{ flex: 1 }}>
-                           <select value={formData.duration || 'monthly'} onChange={e => {
-                             const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
-                             if (formData.startDate) {
-                               const newEnd = calculateEndDate(formData.startDate, dur);
-                               setFormData({...formData, duration: dur, endDate: newEnd});
-                             } else setFormData({...formData, duration: dur});
-                           }} required>
-                             <option value="monthly">{t.monthly}</option>
-                             <option value="quarterly">{t.quarterly}</option>
-                             <option value="yearly">{t.yearly}</option>
+                               const newSvc = e.target.value;
+                               setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
+                             }} required style={{ borderRadius: '8px' }}>
+                             {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
                            </select>
+                           <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} style={{ borderRadius: '8px' }} />
+                           <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required style={{ borderRadius: '8px' }} />
+                           <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required style={{ borderRadius: '8px' }} />
                          </div>
-                       </div>
-                       <div className="form-row">
-                         <div className="date-input-group" style={{ flex: 1 }}>
-                           <label>{t.startDate}:</label>
-                           <input type="date" value={formData.startDate} onChange={e => {
-                             const strt = e.target.value;
-                             const dur = formData.duration || 'monthly';
-                             if (strt) setFormData({...formData, startDate: strt, endDate: calculateEndDate(strt, dur)});
-                             else setFormData({...formData, startDate: strt});
-                           }} required />
+                         <div className="form-row" style={{ marginTop: '1rem' }}>
+                           <div style={{display:'flex', gap:'0', direction:'ltr', flex: 1}}>
+                              <select style={{width:'auto', borderRight: 'none', borderTopRightRadius: 0, borderBottomRightRadius: 0, borderTopLeftRadius: '8px', borderBottomLeftRadius: '8px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
+                                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+                              </select>
+                              <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required style={{flex: 1, borderTopRightRadius: '8px', borderBottomRightRadius: '8px', borderTopLeftRadius: 0, borderBottomLeftRadius: 0}} />
+                           </div>
+                           <select value={formData.duration || 'monthly'} onChange={e => {
+                               const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
+                               if (formData.startDate) {
+                                 const newEnd = calculateEndDate(formData.startDate, dur);
+                                 setFormData({...formData, duration: dur, endDate: newEnd});
+                               } else setFormData({...formData, duration: dur});
+                             }} required style={{ flex: 1, borderRadius: '8px' }}>
+                               <option value="monthly">{t.monthly}</option>
+                               <option value="quarterly">{t.quarterly}</option>
+                               <option value="yearly">{t.yearly}</option>
+                           </select>
+                           <div className="date-input-group" style={{ flex: 1 }}>
+                             <label>{t.startDate}:</label>
+                             <input type="date" value={formData.startDate} onChange={e => {
+                               const strt = e.target.value;
+                               const dur = formData.duration || 'monthly';
+                               if (strt) setFormData({...formData, startDate: strt, endDate: calculateEndDate(strt, dur)});
+                               else setFormData({...formData, startDate: strt});
+                             }} required style={{ borderRadius: '8px' }} />
+                           </div>
+                           <div className="date-input-group" style={{ flex: 1 }}>
+                             <label>{t.endDate}:</label>
+                             <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required style={{ borderRadius: '8px' }} />
+                           </div>
                          </div>
-                         <div className="date-input-group" style={{ flex: 1 }}>
-                           <label>{t.endDate}:</label>
-                           <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required />
+                         <div className="form-row" style={{ marginTop: '1rem' }}>
+                           <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required style={{ flex: 1, borderRadius: '8px' }} />
+                           <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} style={{ flex: 1, borderRadius: '8px' }} />
+                           <div style={{ flex: 1, display: 'flex', gap: '1rem' }}>
+                             <button type="submit" className="btn-primary" style={{ flex: 1, margin: 0, borderRadius: '8px' }}>{editingId ? t.update : t.add}</button>
+                             {editingId && <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ flex: 1, margin: 0, borderRadius: '8px' }}>{t.cancel}</button>}
+                           </div>
                          </div>
-                       </div>
-                       <div className="form-row">
-                         <input type="number" placeholder={t.amount} value={formData.payment} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
-                         <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
-                       </div>
-                       <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>{editingId ? t.update : t.add}</button>
-                       {editingId && <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ marginTop: '0.5rem' }}>{t.cancel}</button>}
-                     </form>
-                  </div>
+                       </form>
+                     </div>
                   
+                  {/* Table Section */}
                   <div className="table-responsive">
                     <table className="admin-table">
-                      <thead><tr><th>{t.id}</th><th>{t.service}</th><th>{t.name}</th><th>{t.endDate}</th><th>{t.actions}</th></tr></thead>
+                      <thead><tr><th>{t.id}</th><th>{t.service}</th><th>{t.name}</th><th>{t.endDate}</th><th style={{ textAlign: 'center' }}>{t.actions}</th></tr></thead>
                       <tbody>
                         {filteredSubscriptions.map(s => (
                           <tr key={s.id}>
@@ -590,17 +585,18 @@ function App() {
                             <td><span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span>
                             <div style={{marginTop: '4px', fontSize: '0.75rem', color: 'var(--text-muted)'}}>{s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}</div>
                             </td>
-                            <td>
-                              <button onClick={() => sendWhatsApp(s)} className="btn-wa" title={t.whatsapp}>💬</button>
-                              <button onClick={() => handleRenewClick(s)} className="btn-renew" title={t.renew} style={{ background: 'rgba(59, 130, 246, 0.1)', color: '#3B82F6', border: 'none', width: '36px', height: '36px', borderRadius: '10px', cursor: 'pointer', margin: '0 4px' }}>🔄</button>
-                              <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0,0); }} className="btn-edit" title={t.update}>✏️</button>
-                              <button onClick={() => { if(window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} className="btn-delete" title={t.logout}>🗑️</button>
+                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                              <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
+                              <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
+                              <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0,0); }} title={t.update}>✏️</button>
+                              <button onClick={() => { if(window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
                             </td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
+                   </div>
                 </div>
               )}
 

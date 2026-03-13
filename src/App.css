@@ -166,7 +166,7 @@ body {
 
 .login-inputs-row {
   display: flex;
-  gap: 0;
+  gap: 1rem;
   width: 100%;
 }
 
@@ -175,19 +175,16 @@ body {
   padding: 1rem 1.5rem;
   font-size: 1.1rem;
   border: 1px solid #e0e0e0;
+  border-radius: 8px;
   outline: none;
   background: #ffffff;
   color: #000000;
   text-align: right;
+  transition: border-color 0.2s;
 }
 
-.login-inputs-row input:first-child {
-  border-radius: 4px 0 0 4px;
-  border-right: none;
-}
-
-.login-inputs-row input:last-child {
-  border-radius: 0 4px 4px 0;
+.login-inputs-row input::placeholder {
+  color: #a0a0a0;
 }
 
 .login-inputs-row input:focus {
@@ -199,7 +196,7 @@ body {
   color: #ffffff;
   border: none;
   padding: 1.2rem 2rem;
-  border-radius: 100px;
+  border-radius: 8px;
   font-size: 1.2rem;
   font-weight: 700;
   cursor: pointer;
@@ -388,44 +385,29 @@ body {
 
 .form-row {
   display: flex;
-  gap: 0;
+  gap: 1rem;
   width: 100%;
 }
 
-.form-row > * {
-  flex: 1;
-}
-
-.form-row input, .form-row select, .form-row .date-input-group {
+.admin-form input, .admin-form select {
   padding: 0.85rem 1.25rem;
   font-size: 1rem;
   border: 1px solid #e0e0e0;
   background: #ffffff;
   color: #000000;
-  border-radius: 0;
+  border-radius: 8px;
   outline: none;
   font-family: inherit;
   transition: border-color 0.2s;
   margin: 0;
+  width: 100%;
 }
 
-.form-row > *:first-child {
-  border-top-right-radius: 8px;
-  border-bottom-right-radius: 8px;
-  border-left: none;
+.admin-form input::placeholder {
+  color: #a0a0a0;
 }
 
-.form-row > *:last-child {
-  border-top-left-radius: 8px;
-  border-bottom-left-radius: 8px;
-  border-left: 1px solid #e0e0e0;
-}
-
-.form-row > *:not(:first-child):not(:last-child) {
-  border-left: none;
-}
-
-.form-row input:focus, .form-row select:focus {
+.admin-form input:focus, .admin-form select:focus {
   border-color: #000000;
   z-index: 1;
 }
@@ -435,11 +417,14 @@ body {
   align-items: center;
   gap: 0.5rem;
   border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 0 1rem;
+  background: #ffffff;
 }
 
 .date-input-group label {
   font-size: 0.9rem;
-  color: #666;
+  color: #a0a0a0;
   white-space: nowrap;
 }
 
@@ -456,22 +441,24 @@ body {
 /* Form Buttons overrides */
 .admin-form .btn-primary {
   width: 100%;
-  margin-top: 1rem !important;
+  margin-top: 0 !important;
   background: #000000;
   color: #ffffff;
   padding: 1rem 2.5rem;
-  border-radius: 100px;
+  border-radius: 8px;
   font-weight: 700;
+  border: none;
+  cursor: pointer;
 }
 
 .admin-form .btn-secondary {
   width: 100%;
-  margin-top: 0.5rem !important;
+  margin-top: 0 !important;
   background: transparent;
-  color: #666;
+  color: #000000;
   border: 1px solid #e0e0e0;
   padding: 1rem 2.5rem;
-  border-radius: 100px;
+  border-radius: 8px;
   font-weight: 700;
   cursor: pointer;
 }
