@@ -11,6 +11,8 @@ interface User {
 interface Subscription {
   id?: number;
   service: string;
+  category?: string;
+  duration?: 'monthly' | 'quarterly' | 'yearly';
   name: string;
   email: string;
   facebook: string;
@@ -42,7 +44,8 @@ const db = new Dexie('SubmanDB') as Dexie & {
   settings: EntityTable<Setting, 'id'>;
 };
 
-db.version(8).stores({
+// Auto-upgrade version from 8 to 9
+db.version(9).stores({
   subscriptions: '++id, service, name, email, whatsapp, facebook, endDate',
   users: '++id, &username',
   notifications: '++id, createdAt',
