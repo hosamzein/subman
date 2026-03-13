@@ -730,6 +730,8 @@ body.light-theme::before {
 /* Dashboard Table Design (Minimalist) */
 .table-responsive {
   overflow-x: auto;
+  position: relative;
+  z-index: 2;
 }
 
 .admin-table {
@@ -737,6 +739,8 @@ body.light-theme::before {
   border-collapse: separate;
   border-spacing: 0;
   margin-top: 1rem;
+  position: relative;
+  z-index: 2;
 }
 
 .admin-table th {
@@ -794,6 +798,9 @@ body.light-theme::before {
   flex-wrap: wrap;
   gap: 0.4rem;
   justify-content: center;
+  position: relative;
+  z-index: 3;
+  pointer-events: auto;
 }
 
 .user-actions button {
@@ -806,6 +813,10 @@ body.light-theme::before {
   line-height: 1.2;
   opacity: 1;
   border: 1px solid transparent !important;
+  position: relative;
+  z-index: 4;
+  pointer-events: auto;
+  cursor: pointer;
 }
 
 .user-actions .btn-primary {
