@@ -89,6 +89,13 @@ export type NotificationRecord = {
   createdAt: string;
 };
 
+export type UserAuthMethod = 'email' | 'google' | 'email+google' | 'unknown';
+
+export type UserAuthMethodRow = {
+  user_id: string;
+  providers: string[] | null;
+};
+
 export type SettingRecord = {
   id: string;
   value: string;

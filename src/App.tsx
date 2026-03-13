@@ -10,6 +10,8 @@ import type {
   SettingRecord,
   Subscription,
   SubscriptionDuration,
+  UserAuthMethod,
+  UserAuthMethodRow,
 } from './supabaseClient';
 import type {
   IncomeDistributionItem,
@@ -107,11 +109,19 @@ const translations = {
     alreadyHave: "لديك حساب بالفعل؟ دخول",
     needAccount: "ليس لديك حساب؟ سجل الآن",
     googleLogin: "الدخول بواسطة جوجل",
+    useMail: "استخدم بريدك الإلكتروني",
+    hideMail: "إخفاء البريد الإلكتروني",
+    emailLoginHint: "أو استخدم بريدك الإلكتروني بخطوات سريعة",
     status: "الحالة",
     approve: "تفعيل",
     reject: "رفض",
     makeAdmin: "تعيين كمدير",
     makeUser: "تعيين كمستخدم",
+    authMethod: "طريقة التسجيل",
+    emailMethod: "البريد",
+    googleMethod: "جوجل",
+    emailGoogleMethod: "البريد + جوجل",
+    unknownMethod: "غير معروف",
   },
   en: {
     title: "Subscription Management",
@@ -181,11 +191,19 @@ const translations = {
     alreadyHave: "Already have an account? Login",
     needAccount: "Don't have an account? Register",
     googleLogin: "Login with Google",
+    useMail: "Use your email",
+    hideMail: "Hide email form",
+    emailLoginHint: "Or continue with your email in a simple form",
     status: "Status",
     approve: "Approve",
     reject: "Reject",
     makeAdmin: "Make Admin",
     makeUser: "Make User",
+    authMethod: "Sign-in Method",
+    emailMethod: "Email",
+    googleMethod: "Google",
+    emailGoogleMethod: "Email + Google",
+    unknownMethod: "Unknown",
   }
 };
 
@@ -211,6 +229,10 @@ type AnalyticsSummary = {
   periodIncome: number;
   serviceDist: ServiceDistributionItem[];
   totalInPeriod: number;
+};
+
+type ManagedUser = Profile & {
+  authMethod: UserAuthMethod;
 };
 
 const getStoredLanguage = (): Language => {
@@ -308,11 +330,46 @@ const calculateEndDate = (startDate: string, duration: SubscriptionDuration) => 
 
 const readSearchableValue = (value: string | null | undefined) => value?.toLowerCase() ?? '';
 
+const resolveAuthMethod = (providers: string[] | null | undefined): UserAuthMethod => {
+  if (!providers?.length) {
+    return 'unknown';
+  }
+
+  const normalizedProviders = [...new Set(providers.map((provider) => provider.toLowerCase()))];
+  const hasEmail = normalizedProviders.includes('email');
+  const hasGoogle = normalizedProviders.includes('google');
+
+  if (hasEmail && hasGoogle) return 'email+google';
+  if (hasGoogle) return 'google';
+  if (hasEmail) return 'email';
+
+  return 'unknown';
+};
+
+const attachAuthMethods = (profiles: Profile[], methodRows: UserAuthMethodRow[] | null): ManagedUser[] => {
+  const methodsByUserId = new Map(
+    (methodRows ?? []).map((row) => [row.user_id, resolveAuthMethod(row.providers)]),
+  );
+
+  return profiles.map((profile) => ({
+    ...profile,
+    authMethod: methodsByUserId.get(profile.id) ?? 'unknown',
+  }));
+};
+
+const getAuthMethodLabel = (method: UserAuthMethod, dictionary: typeof translations[Language]) => {
+  if (method === 'google') return dictionary.googleMethod;
+  if (method === 'email+google') return dictionary.emailGoogleMethod;
+  if (method === 'email') return dictionary.emailMethod;
+  return dictionary.unknownMethod;
+};
+
 function App() {
   const [lang, setLang] = useState<Language>(getStoredLanguage);
   const [theme, setTheme] = useState<Theme>(getStoredTheme);
   const [currentView, setCurrentView] = useState<View>('dashboard');
   const [authMode, setAuthMode] = useState<AuthMode>('login');
+  const [showEmailAuth, setShowEmailAuth] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginData, setLoginData] = useState({ email: '', pass: '' });
   const [currentUser, setCurrentUser] = useState<User | null>(null);
@@ -322,7 +379,7 @@ function App() {
   const profileLoadingRef = useRef<string | null>(null);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [allUsers, setAllUsers] = useState<Profile[]>([]);
+  const [allUsers, setAllUsers] = useState<ManagedUser[]>([]);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [waMessage, setWaMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
@@ -489,15 +546,22 @@ function App() {
         ? supabase.from('profiles').select('*')
         : Promise.resolve({ data: null, error: null });
 
-      const [subscriptionsResult, profilesResult, settingsResult, notificationsResult] = await Promise.all([
+      const authMethodsPromise = userProfile?.role === 'admin'
+        ? supabase.rpc('admin_user_auth_methods')
+        : Promise.resolve({ data: null, error: null });
+
+      const [subscriptionsResult, profilesResult, authMethodsResult, settingsResult, notificationsResult] = await Promise.all([
         subscriptionsQuery.order('createdat', { ascending: false }),
         profilesPromise,
+        authMethodsPromise,
         supabase.from('settings').select('*').eq('id', 'whatsapp_message').maybeSingle<SettingRecord>(),
         supabase.from('notifications').select('*').eq('user_id', currentUser.id).order('createdat', { ascending: false }),
       ]);
 
+      const normalizedProfiles = (profilesResult.data as DbProfile[] | null)?.map(normalizeProfile) ?? [];
+
       setSubscriptions((subscriptionsResult.data as DbSubscription[] | null)?.map(normalizeSubscription) ?? []);
-      setAllUsers((profilesResult.data as DbProfile[] | null)?.map(normalizeProfile) ?? []);
+      setAllUsers(attachAuthMethods(normalizedProfiles, authMethodsResult.data as UserAuthMethodRow[] | null));
       setWaMessage(settingsResult.data?.value ?? DEFAULT_WHATSAPP_MESSAGE);
       setNotifications((notificationsResult.data as DbNotificationRecord[] | null)?.map(normalizeNotification) ?? []);
     };
@@ -563,6 +627,11 @@ function App() {
     });
 
     if (error) alert(error.message);
+  };
+
+  const toggleEmailAuth = () => {
+    setShowEmailAuth((current) => !current);
+    setAuthMode('login');
   };
 
   const handleLogout = async () => {
@@ -704,7 +773,11 @@ function App() {
 
     if (data) {
       const normalizedProfile = normalizeProfile(data);
-      setAllUsers((currentUsers) => currentUsers.map((user) => (user.id === userId ? normalizedProfile : user)));
+      setAllUsers((currentUsers) => currentUsers.map((user) => (
+        user.id === userId
+          ? { ...normalizedProfile, authMethod: user.authMethod }
+          : user
+      )));
 
       if (currentUser?.id === userId) {
         setUserProfile(normalizedProfile);
@@ -738,36 +811,39 @@ function App() {
         <div className="login-container">
           <div className="login-card">
             <h1>{t.title}</h1>
-            {authMode === 'login' ? (
-              <form onSubmit={handleLogin} className="login-form">
-                <div className="login-inputs-row">
-                  <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
-                  <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
-                </div>
-                <button type="submit" className="login-submit-btn">{t.enter}</button>
-                <div style={{ margin: '15px 0', display: 'flex', alignItems: 'center', gap: '10px', color: '#a0a0a0' }}>
-                  <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} /> {lang === 'ar' ? 'أو' : 'OR'} <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} />
-                </div>
-                <button type="button" onClick={handleGoogleLogin} className="google-btn">
-                  <span style={{ fontSize: '1.2rem' }}>G</span> {t.googleLogin}
-                </button>
-                <p className="auth-switch" onClick={() => setAuthMode('register')}>{t.needAccount}</p>
-              </form>
-            ) : (
-              <form onSubmit={handleSignUp} className="login-form">
-                <div className="login-inputs-row">
-                  <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
-                  <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
-                </div>
-                <button type="submit" className="login-submit-btn">{t.register}</button>
-                <div style={{ margin: '15px 0', display: 'flex', alignItems: 'center', gap: '10px', color: '#a0a0a0' }}>
-                  <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} /> {lang === 'ar' ? 'أو' : 'OR'} <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} />
-                </div>
-                <button type="button" onClick={handleGoogleLogin} className="google-btn">
-                  <span style={{ fontSize: '1.2rem' }}>G</span> {t.googleLogin}
-                </button>
-                <p className="auth-switch" onClick={() => setAuthMode('login')}>{t.alreadyHave}</p>
-              </form>
+            <div className="login-intro">
+              <p className="login-eyebrow">{lang === 'ar' ? 'الدخول الأسرع' : 'Fastest sign in'}</p>
+              <p className="login-subtitle">{lang === 'ar' ? 'ابدأ مباشرة عبر جوجل، أو افتح نموذج البريد عند الحاجة.' : 'Start instantly with Google, or open the email form only when needed.'}</p>
+            </div>
+            <button type="button" onClick={handleGoogleLogin} className="google-btn login-google-primary">
+              <span style={{ fontSize: '1.2rem' }}>G</span> {t.googleLogin}
+            </button>
+            <button type="button" className="mail-link-btn" onClick={toggleEmailAuth}>
+              {showEmailAuth ? t.hideMail : t.useMail}
+            </button>
+            {showEmailAuth && (
+              <div className="email-auth-panel">
+                <p className="email-auth-hint">{t.emailLoginHint}</p>
+                {authMode === 'login' ? (
+                  <form onSubmit={handleLogin} className="login-form">
+                    <div className="login-inputs-row">
+                      <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
+                      <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
+                    </div>
+                    <button type="submit" className="login-submit-btn">{t.enter}</button>
+                    <p className="auth-switch" onClick={() => setAuthMode('register')}>{t.needAccount}</p>
+                  </form>
+                ) : (
+                  <form onSubmit={handleSignUp} className="login-form">
+                    <div className="login-inputs-row">
+                      <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
+                      <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
+                    </div>
+                    <button type="submit" className="login-submit-btn">{t.register}</button>
+                    <p className="auth-switch" onClick={() => setAuthMode('login')}>{t.alreadyHave}</p>
+                  </form>
+                )}
+              </div>
             )}
           </div>
         </div>
@@ -1118,7 +1194,7 @@ function App() {
                   </div>
                   <div className="table-responsive">
                     <table className="admin-table">
-                      <thead><tr><th>{t.user}</th><th>{t.status}</th><th>{t.role}</th><th>{t.actions}</th></tr></thead>
+                      <thead><tr><th>{t.user}</th><th>{t.status}</th><th>{t.role}</th><th>{t.authMethod}</th><th>{t.actions}</th></tr></thead>
                       <tbody>{allUsers?.map(u => (
                         <tr key={u.id}>
                           <td>{u.username}</td>
@@ -1128,6 +1204,7 @@ function App() {
                             </span>
                           </td>
                           <td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.userLabel}</span></td>
+                          <td><span className="badge badge-service">{getAuthMethodLabel(u.authMethod, t)}</span></td>
                           <td>
                             <div className="user-actions">
                               {u.status === 'pending' && (
