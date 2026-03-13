@@ -689,6 +689,49 @@ function App() {
     writeFile(workbook, 'Subman_Export.xlsx');
   };
 
+  const handleProfileAction = async (userId: string, updates: Partial<Pick<Profile, 'role' | 'status'>>) => {
+    const { data, error } = await supabase
+      .from('profiles')
+      .update(updates)
+      .eq('id', userId)
+      .select('*')
+      .single<DbProfile>();
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    if (data) {
+      const normalizedProfile = normalizeProfile(data);
+      setAllUsers((currentUsers) => currentUsers.map((user) => (user.id === userId ? normalizedProfile : user)));
+
+      if (currentUser?.id === userId) {
+        setUserProfile(normalizedProfile);
+      }
+    }
+
+    setSuccessMessage(lang === 'ar' ? 'تم تحديث بيانات المستخدم' : 'User updated successfully');
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (!window.confirm(t.confirmDelete)) {
+      return;
+    }
+
+    const { error } = await supabase.from('profiles').delete().eq('id', userId);
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setAllUsers((currentUsers) => currentUsers.filter((user) => user.id !== userId));
+    setSuccessMessage(lang === 'ar' ? 'تم حذف المستخدم' : 'User deleted successfully');
+    setTimeout(() => setSuccessMessage(''), 3000);
+  };
+
   return (
     <div className={`app-layout ${theme}-theme ${!isLoggedIn || (userProfile?.status === 'pending' && userProfile?.role !== 'admin') ? 'is-login-page' : ''}`}>
       {!isLoggedIn ? (
@@ -1089,18 +1132,18 @@ function App() {
                             <div className="user-actions">
                               {u.status === 'pending' && (
                                 <>
-                                  <button onClick={() => supabase.from('profiles').update({ status: 'approved' }).eq('id', u.id)} className="btn-success" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.approve}</button>
-                                  <button onClick={() => supabase.from('profiles').update({ status: 'rejected' }).eq('id', u.id)} className="btn-danger" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.reject}</button>
+                                  <button onClick={() => { void handleProfileAction(u.id, { status: 'approved' }); }} className="btn-success" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.approve}</button>
+                                  <button onClick={() => { void handleProfileAction(u.id, { status: 'rejected' }); }} className="btn-danger" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.reject}</button>
                                 </>
                               )}
                               {u.role !== 'admin' ? (
-                                <button onClick={() => supabase.from('profiles').update({ role: 'admin' }).eq('id', u.id)} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.makeAdmin}</button>
+                                <button onClick={() => { void handleProfileAction(u.id, { role: 'admin' }); }} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.makeAdmin}</button>
                               ) : (
                                 u.id !== currentUser?.id && (
-                                  <button onClick={() => supabase.from('profiles').update({ role: 'user' }).eq('id', u.id)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.makeUser}</button>
+                                  <button onClick={() => { void handleProfileAction(u.id, { role: 'user' }); }} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.makeUser}</button>
                                 )
                               )}
-                              <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('profiles').delete().eq('id', u.id); }} className="btn-delete" title={t.logout}>🗑️</button>
+                              <button onClick={() => { void handleDeleteUser(u.id); }} className="btn-delete" title={t.logout}>🗑️</button>
                             </div>
                           </td>
                         </tr>
