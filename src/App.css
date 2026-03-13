@@ -12,12 +12,8 @@
   --border-hover: rgba(255, 255, 255, 0.15);
   --text-main: #FFFFFF;
   --text-muted: #A1A1AA;
-  --glow-purple: rgba(147, 51, 234, 0.3);
-  --glow-blue: rgba(59, 130, 246, 0.3);
   --accent: #FFFFFF;
   --accent-text: #000000;
-  --header-bg: rgba(0, 0, 0, 0.4);
-  --sidebar-bg: rgba(0, 0, 0, 0.2);
 }
 
 .light-theme {
@@ -28,12 +24,8 @@
   --border-hover: rgba(0, 0, 0, 0.12);
   --text-main: #09090B;
   --text-muted: #71717A;
-  --glow-purple: rgba(147, 51, 234, 0.05);
-  --glow-blue: rgba(59, 130, 246, 0.05);
   --accent: #09090B;
   --accent-text: #FFFFFF;
-  --header-bg: rgba(255, 255, 255, 0.8);
-  --sidebar-bg: rgba(255, 255, 255, 0.8);
 }
 
 * {
@@ -267,6 +259,16 @@ body {
   gap: 1.5rem;
 }
 
+.header-actions h2 {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.dashboard-filters {
+  display: flex;
+  align-items: center;
+}
+
 .view-container {
   padding: 2.5rem;
   flex: 1;
@@ -488,16 +490,6 @@ body {
   align-items: center;
   box-sizing: border-box;
   font-weight: 600;
-}
-
-.date-input-group input {
-  padding: 0;
-  border: none;
-  flex: 1;
-}
-
-.date-input-group input:focus {
-  border: none;
 }
 
 /* Form Buttons overrides */

@@ -2,12 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { db } from './db';
 import * as XLSX from 'xlsx';
-import { 
+import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
-import { UniversalDatePicker } from '@/components/ui/universal-date-picker';
-import { parseISO, format as formatDF } from 'date-fns';
 import './App.css';
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity', 'Gemini'];
@@ -24,6 +22,7 @@ const COUNTRY_CODES = [
   { code: '971', label: 'الإمارات (+971)' },
   { code: '965', label: 'الكويت (+965)' },
   { code: '964', label: 'العراق (+964)' },
+  { code: '974', label: 'قطر (+974)' },
 ];
 
 const translations = {
@@ -164,7 +163,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginData, setLoginData] = useState({ user: '', pass: '' });
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
+
   const subscriptions = useLiveQuery(() => db.subscriptions.toArray());
   const users = useLiveQuery(() => db.users.toArray());
   const notifications = useLiveQuery(() => db.notifications.orderBy('createdAt').reverse().toArray());
@@ -213,11 +212,11 @@ function App() {
     if (!subscriptions || !isLoggedIn) return;
     const genNotif = async () => {
       const today = new Date();
-      await db.notifications.where('createdAt').below(today.getTime() - (7*24*60*60*1000)).delete();
+      await db.notifications.where('createdAt').below(today.getTime() - (7 * 24 * 60 * 60 * 1000)).delete();
       for (const sub of subscriptions) {
         const end = new Date(sub.endDate);
-        const diff = Math.ceil((end.getTime() - today.getTime()) / (1000*60*60*24));
-        let m = ""; let type: 'info'|'warning'|'danger' = 'info';
+        const diff = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        let m = ""; let type: 'info' | 'warning' | 'danger' = 'info';
         if (diff < 0) { m = `انتهى اشتراك ${sub.name} (${sub.service})`; type = 'danger'; }
         else if (diff <= 2) { m = `تجديد ${sub.name} (${sub.service}) خلال ${diff} أيام`; type = 'warning'; }
         if (m) {
@@ -313,8 +312,8 @@ function App() {
         si[sub.service] = (si[sub.service] || 0) + Number(sub.payment);
       }
     });
-    return { 
-      periodIncome: pi, totalInPeriod: tip, currentActive: ca, 
+    return {
+      periodIncome: pi, totalInPeriod: tip, currentActive: ca,
       serviceDist: Object.keys(sc).map(n => ({ name: n, value: sc[n] })),
       incomeDist: Object.keys(si).map(n => ({ name: n, amount: si[n] }))
     };
@@ -348,8 +347,8 @@ function App() {
             <h1>{t.title}</h1>
             <form onSubmit={handleLogin} className="login-form">
               <div className="login-inputs-row">
-                <input type="text" placeholder={t.username} value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} required />
-                <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
+                <input type="text" placeholder={t.username} value={loginData.user} onChange={e => setLoginData({ ...loginData, user: e.target.value })} required />
+                <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
               </div>
               <button type="submit" className="login-submit-btn">{t.enter}</button>
             </form>
@@ -392,17 +391,18 @@ function App() {
                 <div className="dashboard-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '2rem' }}>
                     <h2>{t.dashboard}</h2>
-                    <div className="dashboard-filters" style={{ width: '320px' }}>
-                      <UniversalDatePicker 
-                        selected={{ from: parseISO(statsFromDate), to: parseISO(statsToDate) }}
-                        onSelect={(range) => {
-                          if (range?.from) setStatsFromDate(formatDF(range.from, 'yyyy-MM-dd'));
-                          if (range?.to) setStatsToDate(formatDF(range.to, 'yyyy-MM-dd'));
-                        }}
-                      />
+                    <div className="dashboard-filters" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'من' : 'From'}</label>
+                        <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'إلى' : 'To'}</label>
+                        <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
+                      </div>
                     </div>
                   </div>
-                  
+
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginBottom: '2rem' }}>
                     {/* Stats Column */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
@@ -422,13 +422,13 @@ function App() {
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                       <div className="chart-card" style={{ margin: 0 }}>
                         <h3>{t.serviceDist}</h3>
-                        <div style={{height:'300px'}}>
+                        <div style={{ height: '300px' }}>
                           <ResponsiveContainer><PieChart><Pie data={analytics.serviceDist} innerRadius={60} outerRadius={80} dataKey="value">{analytics.serviceDist.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer>
                         </div>
                       </div>
                       <div className="chart-card" style={{ margin: 0 }}>
                         <h3>{t.incomeDist}</h3>
-                        <div style={{height:'300px'}}>
+                        <div style={{ height: '300px' }}>
                           <ResponsiveContainer><BarChart data={analytics.incomeDist}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
                         </div>
                       </div>
@@ -444,7 +444,7 @@ function App() {
                     <h3>{t.waTemplate}</h3>
                     <p className="help-text">{t.waHelp}</p>
                     <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)} className="settings-textarea" rows={4} />
-                    <button onClick={async () => { await db.settings.put({id:'whatsapp_message', value:waMessage}); setSuccessMessage(t.saved); setTimeout(()=>setSuccessMessage(''),3000); }} className="btn-primary" style={{marginTop:'1rem'}}>{t.save}</button>
+                    <button onClick={async () => { await db.settings.put({ id: 'whatsapp_message', value: waMessage }); setSuccessMessage(t.saved); setTimeout(() => setSuccessMessage(''), 3000); }} className="btn-primary" style={{ marginTop: '1rem' }}>{t.save}</button>
                   </div>
                   {successMessage && <div className="success-banner">{successMessage}</div>}
                 </div>
@@ -454,7 +454,7 @@ function App() {
                 <div className="notifications-view animate-fade">
                   <div className="header-actions"><h2>{t.notifCenter}</h2><button onClick={() => db.notifications.clear()} className="btn-secondary">{t.clearAll}</button></div>
                   <div className="notifications-list">
-                    {!notifications || notifications.length === 0 ? <p className="empty-msg">{t.noNotifs}</p> : 
+                    {!notifications || notifications.length === 0 ? <p className="empty-msg">{t.noNotifs}</p> :
                       notifications.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</small></div><button onClick={() => db.notifications.delete(n.id!)} className="btn-close">×</button></div>))
                     }
                   </div>
@@ -469,32 +469,32 @@ function App() {
 
                   {/* Elegant Search and Filter Bar */}
                   <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
-                    
+
                     {/* Search Field */}
                     <div style={{ flex: 1 }}>
-                      <input 
-                        type="text" 
-                        placeholder={t.search} 
-                        className="search-input-refined" 
-                        value={searchQuery} 
-                        onChange={e => setSearchQuery(e.target.value)} 
+                      <input
+                        type="text"
+                        placeholder={t.search}
+                        className="search-input-refined"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
                         style={{ width: '100%', margin: 0, padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid #e0e0e0', backgroundColor: '#fff', color: '#000' }}
                       />
                     </div>
 
                     {/* Filters Row */}
                     <div>
-                      <label 
-                        className="renewal-checkbox-large" 
-                        style={{ 
-                          display: 'inline-flex', 
-                          alignItems: 'center', 
-                          gap: '0.5rem', 
-                          cursor: 'pointer', 
-                          padding: '0.6rem 1rem', 
-                          borderRadius: '8px', 
-                          background: '#fff', 
-                          border: '1px solid #e0e0e0', 
+                      <label
+                        className="renewal-checkbox-large"
+                        style={{
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          cursor: 'pointer',
+                          padding: '0.6rem 1rem',
+                          borderRadius: '8px',
+                          background: '#fff',
+                          border: '1px solid #e0e0e0',
                           transition: 'all 0.2s',
                           userSelect: 'none',
                           color: '#000'
@@ -502,10 +502,10 @@ function App() {
                       >
                         <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>📥</span>
                         <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t.renewalOnly}</span>
-                        <input 
-                          type="checkbox" 
-                          checked={showOnlyRenewals} 
-                          onChange={e => setShowOnlyRenewals(e.target.checked)} 
+                        <input
+                          type="checkbox"
+                          checked={showOnlyRenewals}
+                          onChange={e => setShowOnlyRenewals(e.target.checked)}
                           style={{ margin: 0, cursor: 'pointer', marginLeft: '0.5rem' }}
                         />
                       </label>
@@ -519,107 +519,107 @@ function App() {
                   </div>
 
                   {successMessage && <div style={{ background: '#000', color: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center', fontWeight: 'bold' }}>{successMessage}</div>}
-                  
+
                   <div className="main-content-card">
                     {/* Form Section */}
                     <div style={{ padding: '2.5rem', borderBottom: '1px solid #f0f0f0' }}>
-                       <form onSubmit={async (e) => { 
-                         e.preventDefault(); 
-                         if (editingId) { await db.subscriptions.update(editingId, formData); setSuccessMessage(t.updated); }
-                         else { await db.subscriptions.add({...formData, createdAt: new Date().toLocaleString()}); setSuccessMessage(t.saved); }
-                         setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
-                         setEditingId(null); setTimeout(()=>setSuccessMessage(''), 3000);
-                       }} className="admin-form">
-                         
-                         {/* Section 1: Subscription Details */}
-                         <div className="form-section">
-                           <h3 className="section-title">{t.subDetail}</h3>
-                           <div className="form-row">
-                             <div className="input-field-group">
-                               <label>{t.service}</label>
-                               <select value={formData.service} onChange={e => {
-                                   const newSvc = e.target.value;
-                                   setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
-                                 }} required>
-                                 {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                               </select>
-                             </div>
-                             <div className="input-field-group">
-                               <label>{t.category}</label>
-                               <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} />
-                             </div>
-                             <div className="input-field-group">
-                               <label>{t.duration === 'Duration' ? 'Duration' : 'المدة'}</label> 
-                               <select value={formData.duration || 'monthly'} onChange={e => {
-                                   const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
-                                   if (formData.startDate) {
-                                     const newEnd = calculateEndDate(formData.startDate, dur);
-                                     setFormData({...formData, duration: dur, endDate: newEnd});
-                                   } else setFormData({...formData, duration: dur});
-                                 }} required>
-                                   <option value="monthly">{t.monthly}</option>
-                                   <option value="quarterly">{t.quarterly}</option>
-                                   <option value="yearly">{t.yearly}</option>
-                               </select>
-                             </div>
-                           </div>
-                           <div className="form-row" style={{ marginTop: '1.5rem' }}>
-                             <div className="input-field-group">
-                               <label>{t.startDate}</label>
-                               <input type="date" value={formData.startDate} onChange={e => {
-                                 const strt = e.target.value;
-                                 const dur = formData.duration || 'monthly';
-                                 if (strt) setFormData({...formData, startDate: strt, endDate: calculateEndDate(strt, dur)});
-                                 else setFormData({...formData, startDate: strt});
-                               }} required />
-                             </div>
-                             <div className="input-field-group">
-                               <label>{t.endDate}</label>
-                               <div className="calculated-label">{formatDateDisplay(formData.endDate)}</div>
-                             </div>
-                             <div className="input-field-group">
-                               <label>{t.workspace}</label>
-                               <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
-                             </div>
-                             <div className="input-field-group">
-                               <label>{t.amount}</label>
-                               <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
-                             </div>
-                           </div>
-                         </div>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (editingId) { await db.subscriptions.update(editingId, formData); setSuccessMessage(t.updated); }
+                        else { await db.subscriptions.add({ ...formData, createdAt: new Date().toLocaleString() }); setSuccessMessage(t.saved); }
+                        setFormData({ service: 'Grok', category: 'Artificial Intelligence', duration: 'monthly', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '', startDate: '', endDate: '', payment: 0, workspace: '' });
+                        setEditingId(null); setTimeout(() => setSuccessMessage(''), 3000);
+                      }} className="admin-form">
 
-                         {/* Section 2: Subscriber Details */}
-                         <div className="form-section">
-                           <h3 className="section-title">{t.subscriberDetail}</h3>
-                           <div className="form-row">
-                             <div className="input-field-group">
-                               <label>{t.name}</label>
-                               <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
-                             </div>
-                             <div className="input-field-group">
-                               <label>{t.email}</label>
-                               <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-                             </div>
-                             <div className="input-field-group">
-                                <label>{t.whatsapp}</label>
-                                <div style={{display:'flex', gap:'0.5rem', direction:'ltr'}}>
-                                   <select style={{width:'80px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
-                                     {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                                   </select>
-                                   <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required />
-                                </div>
-                             </div>
-                             <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
-                               <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
-                               {editingId && (
-                                 <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
-                               )}
-                             </div>
-                           </div>
-                         </div>
-                       </form>
+                        {/* Section 1: Subscription Details */}
+                        <div className="form-section">
+                          <h3 className="section-title">{t.subDetail}</h3>
+                          <div className="form-row">
+                            <div className="input-field-group">
+                              <label>{t.service}</label>
+                              <select value={formData.service} onChange={e => {
+                                const newSvc = e.target.value;
+                                setFormData({ ...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || '' });
+                              }} required>
+                                {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.category}</label>
+                              <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.duration === 'Duration' ? 'Duration' : 'المدة'}</label>
+                              <select value={formData.duration || 'monthly'} onChange={e => {
+                                const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
+                                if (formData.startDate) {
+                                  const newEnd = calculateEndDate(formData.startDate, dur);
+                                  setFormData({ ...formData, duration: dur, endDate: newEnd });
+                                } else setFormData({ ...formData, duration: dur });
+                              }} required>
+                                <option value="monthly">{t.monthly}</option>
+                                <option value="quarterly">{t.quarterly}</option>
+                                <option value="yearly">{t.yearly}</option>
+                              </select>
+                            </div>
+                          </div>
+                          <div className="form-row" style={{ marginTop: '1.5rem' }}>
+                            <div className="input-field-group">
+                              <label>{t.startDate}</label>
+                              <input type="date" value={formData.startDate} onChange={e => {
+                                const strt = e.target.value;
+                                const dur = formData.duration || 'monthly';
+                                if (strt) setFormData({ ...formData, startDate: strt, endDate: calculateEndDate(strt, dur) });
+                                else setFormData({ ...formData, startDate: strt });
+                              }} required />
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.endDate}</label>
+                              <div className="calculated-label">{formatDateDisplay(formData.endDate)}</div>
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.workspace}</label>
+                              <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({ ...formData, workspace: e.target.value })} />
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.amount}</label>
+                              <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({ ...formData, payment: Number(e.target.value) })} required />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Section 2: Subscriber Details */}
+                        <div className="form-section">
+                          <h3 className="section-title">{t.subscriberDetail}</h3>
+                          <div className="form-row">
+                            <div className="input-field-group">
+                              <label>{t.name}</label>
+                              <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.email}</label>
+                              <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.whatsapp}</label>
+                              <div style={{ display: 'flex', gap: '0.5rem', direction: 'ltr' }}>
+                                <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })} required>
+                                  {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+                                </select>
+                                <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} required />
+                              </div>
+                            </div>
+                            <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
+                              <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
+                              {editingId && (
+                                <button type="button" onClick={() => { setEditingId(null); setFormData({ service: 'Grok', category: 'Artificial Intelligence', duration: 'monthly', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '', startDate: '', endDate: '', payment: 0, workspace: '' }); }} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </form>
                     </div>
-                  
+
                     {/* Table Section */}
                     <div className="table-responsive">
                       <table className="admin-table">
@@ -653,7 +653,7 @@ function App() {
                               <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                 <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
                                 <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
-                                <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
+                                <button onClick={() => { setFormData({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
                                 <button onClick={() => { if (window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
                               </td>
                             </tr>
@@ -669,51 +669,52 @@ function App() {
                 <div className="users-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '2rem' }}>
                     <h2>{t.manageUsers}</h2>
-                    <div className="dashboard-filters" style={{ width: '320px' }}>
-                      <UniversalDatePicker 
-                        selected={{ from: parseISO(statsFromDate), to: parseISO(statsToDate) }}
-                        onSelect={(range) => {
-                          if (range?.from) setStatsFromDate(formatDF(range.from, 'yyyy-MM-dd'));
-                          if (range?.to) setStatsToDate(formatDF(range.to, 'yyyy-MM-dd'));
-                        }}
-                      />
+                    <div className="dashboard-filters" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'من' : 'From'}</label>
+                        <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
+                      </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'إلى' : 'To'}</label>
+                        <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
+                      </div>
                     </div>
                   </div>
                   <div className="form-card">
-                      <form onSubmit={async (e) => { 
-                        e.preventDefault(); 
-                        try {
-                          if (editingUserId) { await db.users.update(editingUserId, userFormData); setSuccessMessage(t.updated); } 
-                          else { await db.users.add({...userFormData, createdAt: new Date().toLocaleString()}); setSuccessMessage(t.saved); }
-                          setUserFormData({username:'', password:'', role:'editor'}); setEditingUserId(null); setTimeout(()=>setSuccessMessage(''), 3000);
-                        } catch(err) { alert(t.userExists); }
-                      }} className="admin-form">
-                        <div className="form-row">
-                          <input type="text" placeholder={t.username} value={userFormData.username} onChange={e => setUserFormData({...userFormData, username: e.target.value})} required />
-                          <input type="password" placeholder={t.password} value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} required />
-                        </div>
-                        <div className="form-row">
-                          <select value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="editor">{t.editor}</option><option value="admin">{t.admin}</option></select>
-                          <button type="submit" className="btn-primary">{editingUserId ? t.update : t.add}</button>
-                          {editingUserId && <button type="button" onClick={() => { setEditingUserId(null); setUserFormData({username:'', password:'', role:'editor'}); }} className="btn-secondary">{t.cancel}</button>}
-                        </div>
-                      </form>
-                   </div>
-                   {successMessage && <div className="success-banner">{successMessage}</div>}
-                   <div className="table-responsive">
+                    <form onSubmit={async (e) => {
+                      e.preventDefault();
+                      try {
+                        if (editingUserId) { await db.users.update(editingUserId, userFormData); setSuccessMessage(t.updated); }
+                        else { await db.users.add({ ...userFormData, createdAt: new Date().toLocaleString() }); setSuccessMessage(t.saved); }
+                        setUserFormData({ username: '', password: '', role: 'editor' }); setEditingUserId(null); setTimeout(() => setSuccessMessage(''), 3000);
+                      } catch (err) { alert(t.userExists); }
+                    }} className="admin-form">
+                      <div className="form-row">
+                        <input type="text" placeholder={t.username} value={userFormData.username} onChange={e => setUserFormData({ ...userFormData, username: e.target.value })} required />
+                        <input type="password" placeholder={t.password} value={userFormData.password} onChange={e => setUserFormData({ ...userFormData, password: e.target.value })} required />
+                      </div>
+                      <div className="form-row">
+                        <select value={userFormData.role} onChange={e => setUserFormData({ ...userFormData, role: e.target.value as any })}><option value="editor">{t.editor}</option><option value="admin">{t.admin}</option></select>
+                        <button type="submit" className="btn-primary">{editingUserId ? t.update : t.add}</button>
+                        {editingUserId && <button type="button" onClick={() => { setEditingUserId(null); setUserFormData({ username: '', password: '', role: 'editor' }); }} className="btn-secondary">{t.cancel}</button>}
+                      </div>
+                    </form>
+                  </div>
+                  {successMessage && <div className="success-banner">{successMessage}</div>}
+                  <div className="table-responsive">
                     <table className="admin-table">
                       <thead><tr><th>{t.user}</th><th>{t.role}</th><th>{t.actions}</th></tr></thead>
                       <tbody>{users?.map(u => (
                         <tr key={u.id}>
                           <td>{u.username}</td><td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.editor}</span></td>
                           <td>
-                            <button onClick={() => { setUserFormData({username: u.username, password: u.password, role: u.role as 'admin' | 'editor'}); setEditingUserId(u.id!); window.scrollTo(0,0); }} className="btn-edit" title={t.update}>✏️</button>
-                            <button onClick={() => { if(window.confirm(t.confirmDelete)) db.users.delete(u.id!); }} className="btn-delete" title={t.logout}>🗑️</button>
+                            <button onClick={() => { setUserFormData({ username: u.username, password: u.password, role: u.role as 'admin' | 'editor' }); setEditingUserId(u.id!); window.scrollTo(0, 0); }} className="btn-edit" title={t.update}>✏️</button>
+                            <button onClick={() => { if (window.confirm(t.confirmDelete)) db.users.delete(u.id!); }} className="btn-delete" title={t.logout}>🗑️</button>
                           </td>
                         </tr>
                       ))}</tbody>
                     </table>
-                   </div>
+                  </div>
                 </div>
               )}
             </div>
