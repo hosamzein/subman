@@ -403,22 +403,54 @@ function App() {
                 <div className="subscribers-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2>{t.manageSubs}</h2>
-                  </div>
-
-                  <div className="filter-controls-refined" style={{ marginBottom: '1.5rem' }}>
-                    <input type="text" placeholder={t.search} className="search-input-refined" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                  </div>
-
-                  <div className="top-actions" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '1rem' }}>
-                    <label className="renewal-checkbox-large">
-                      <input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} />
-                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <span style={{ fontSize: '1.2rem' }}>🔄</span> {t.renewalOnly}
-                      </span>
-                    </label>
                     <button onClick={handleExport} className="btn-export-main" title={t.export}>
                       📊 {t.export}
                     </button>
+                  </div>
+
+                  {/* Elegant Search and Filter Bar */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                    
+                    {/* Search Field */}
+                    <div style={{ width: '100%' }}>
+                      <input 
+                        type="text" 
+                        placeholder={t.search} 
+                        className="search-input-refined" 
+                        value={searchQuery} 
+                        onChange={e => setSearchQuery(e.target.value)} 
+                        style={{ width: '100%', margin: 0 }}
+                      />
+                    </div>
+
+                    {/* Filters Row */}
+                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+                      <label 
+                        className="renewal-checkbox-large" 
+                        style={{ 
+                          display: 'inline-flex', 
+                          alignItems: 'center', 
+                          gap: '0.75rem', 
+                          cursor: 'pointer', 
+                          padding: '0.6rem 1.2rem', 
+                          borderRadius: '8px', 
+                          background: 'var(--bg-card)', 
+                          border: '1px solid var(--border-color)', 
+                          transition: 'all 0.2s',
+                          userSelect: 'none'
+                        }}
+                      >
+                        <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>📥</span>
+                        <span style={{ fontSize: '1rem', fontWeight: 600 }}>{t.renewalOnly}</span>
+                        <input 
+                          type="checkbox" 
+                          checked={showOnlyRenewals} 
+                          onChange={e => setShowOnlyRenewals(e.target.checked)} 
+                          style={{ margin: 0, width: '18px', height: '18px', cursor: 'pointer', marginRight: '0.5rem' }}
+                        />
+                      </label>
+                    </div>
+
                   </div>
 
                   {successMessage && <div className="success-banner">{successMessage}</div>}
