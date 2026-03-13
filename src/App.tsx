@@ -29,6 +29,7 @@ const SERVICE_CATEGORIES: Record<string, string> = {
   'Gemini': 'Artificial Intelligence',
 };
 const COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#9b59b6'];
+const DARK_COLORS = ['#8edcff', '#6ee7b7', '#facc15', '#fb923c', '#c084fc'];
 const COUNTRY_CODES = [
   { code: '20', label: 'مصر (+20)' },
   { code: '966', label: 'السعودية (+966)' },
@@ -394,6 +395,10 @@ function App() {
 
   const [formData, setFormData] = useState<SubscriptionFormData>(createDefaultFormData);
   const t = translations[lang];
+  const chartPalette = theme === 'dark' ? DARK_COLORS : COLORS;
+  const chartAxisColor = theme === 'dark' ? '#c9d6ea' : '#5f7293';
+  const chartGridColor = theme === 'dark' ? 'rgba(201, 214, 234, 0.16)' : 'rgba(95, 114, 147, 0.14)';
+  const chartBarColor = theme === 'dark' ? '#8edcff' : '#225c8f';
 
   useEffect(() => {
     localStorage.setItem('subman_lang', lang);
@@ -806,19 +811,19 @@ function App() {
         <>
           <aside className="sidebar">
             <nav>
-              <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title={t.dashboard}>📊</button>
-              <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title={t.subscribers}>👥</button>
+              <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title={t.dashboard}><span className="nav-glyph">◫</span></button>
+              <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title={t.subscribers}><span className="nav-glyph">◎</span></button>
               <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title={t.notifications}>
-                🔔 {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
+                <span className="nav-glyph">◌</span> {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
               </button>
               {userProfile?.role === 'admin' && (
                 <>
-                  <button onClick={() => setCurrentView('users')} className={currentView === 'users' ? 'active' : ''} title={t.access}>🔐</button>
-                  <button onClick={() => setCurrentView('settings')} className={currentView === 'settings' ? 'active' : ''} title={t.settings}>⚙️</button>
+                  <button onClick={() => setCurrentView('users')} className={currentView === 'users' ? 'active' : ''} title={t.access}><span className="nav-glyph">◇</span></button>
+                  <button onClick={() => setCurrentView('settings')} className={currentView === 'settings' ? 'active' : ''} title={t.settings}><span className="nav-glyph">✦</span></button>
                 </>
               )}
             </nav>
-            <button onClick={handleLogout} className="logout" title={t.logout}>🚪</button>
+            <button onClick={handleLogout} className="logout" title={t.logout}><span className="nav-glyph">↗</span></button>
           </aside>
 
           <main className="content">
@@ -881,11 +886,15 @@ function App() {
                         }
                       >
                         <AnalyticsCharts
-                          colors={COLORS}
+                          axisColor={chartAxisColor}
+                          barColor={chartBarColor}
+                          colors={chartPalette}
+                          gridColor={chartGridColor}
                           incomeDist={analytics.incomeDist}
                           incomeLabel={t.incomeDist}
                           serviceDist={analytics.serviceDist}
                           serviceLabel={t.serviceDist}
+                          textColor={chartAxisColor}
                         />
                       </Suspense>
                     </div>

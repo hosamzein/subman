@@ -23,19 +23,27 @@ export type IncomeDistributionItem = {
 };
 
 type AnalyticsChartsProps = {
+  axisColor: string;
+  barColor: string;
   colors: string[];
+  gridColor: string;
   incomeDist: IncomeDistributionItem[];
   incomeLabel: string;
   serviceDist: ServiceDistributionItem[];
   serviceLabel: string;
+  textColor: string;
 };
 
 export default function AnalyticsCharts({
+  axisColor,
+  barColor,
   colors,
+  gridColor,
   incomeDist,
   incomeLabel,
   serviceDist,
   serviceLabel,
+  textColor,
 }: AnalyticsChartsProps) {
   return (
     <>
@@ -49,8 +57,8 @@ export default function AnalyticsCharts({
                   <Cell key={`${item.name}-${index}`} fill={colors[index % colors.length]} />
                 ))}
               </Pie>
-              <Tooltip />
-              <Legend />
+              <Tooltip contentStyle={{ borderRadius: '16px', border: `1px solid ${gridColor}`, background: 'rgba(255,255,255,0.96)', color: '#10203d' }} />
+              <Legend wrapperStyle={{ color: textColor }} />
             </PieChart>
           </ResponsiveContainer>
         </div>
@@ -61,11 +69,11 @@ export default function AnalyticsCharts({
         <div style={{ height: '300px' }}>
           <ResponsiveContainer>
             <BarChart data={incomeDist}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} />
-              <XAxis dataKey="name" />
-              <YAxis />
-              <Tooltip />
-              <Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} />
+              <CartesianGrid stroke={gridColor} strokeDasharray="3 3" vertical={false} />
+              <XAxis dataKey="name" tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fill: axisColor, fontSize: 12 }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: '16px', border: `1px solid ${gridColor}`, background: 'rgba(255,255,255,0.96)', color: '#10203d' }} />
+              <Bar dataKey="amount" fill={barColor} radius={[10, 10, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>
