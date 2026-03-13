@@ -70,7 +70,7 @@ const translations = {
     updated: "تم التحديث!",
     waTemplate: "رسالة واتساب الافتراضية",
     waHelp: "استخدم الكلمات التالية للاستبدال التلقائي: {name} للاسم، {service} للخدمة، {date} لتاريخ الانتهاء.",
-    export: "تصدير",
+    export: "تصدير البيانات",
     theme: "المظهر",
     lang: "اللغة"
   },
@@ -97,7 +97,7 @@ const translations = {
     noNotifs: "No new notifications",
     manageSubs: "Manage Subscribers",
     search: "Quick search...",
-    renewalOnly: "Renewal",
+    renewalOnly: "Renew only",
     save: "Save",
     update: "Update",
     add: "Add",
@@ -125,7 +125,7 @@ const translations = {
     updated: "Updated successfully!",
     waTemplate: "Default WhatsApp Message",
     waHelp: "Use tags: {name} for Name, {service} for Service, {date} for End Date.",
-    export: "Export",
+    export: "Export Data",
     theme: "Theme",
     lang: "Language"
   }
@@ -267,6 +267,24 @@ function App() {
     };
   }, [subscriptions, statsFromDate, statsToDate]);
 
+  const handleExport = () => {
+    const data = subscriptions?.map(s => ({
+      [t.id]: s.id,
+      [t.service]: s.service,
+      [t.name]: s.name,
+      [t.email]: s.email,
+      [t.whatsapp]: `+${s.countryCode}${s.whatsapp}`,
+      [t.startDate]: formatDateDisplay(s.startDate),
+      [t.endDate]: formatDateDisplay(s.endDate),
+      [t.amount]: s.payment,
+      [t.workspace]: s.workspace
+    }));
+    const ws = XLSX.utils.json_to_sheet(data || []);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Subscriptions");
+    XLSX.writeFile(wb, "Subman_Export.xlsx");
+  };
+
   return (
     <div className={`app-layout ${theme}-theme`}>
       {!isLoggedIn ? (
@@ -383,18 +401,28 @@ function App() {
 
               {currentView === 'subscribers' && (
                 <div className="subscribers-view animate-fade">
-                  <div className="header-actions">
+                  <div className="header-actions" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2>{t.manageSubs}</h2>
-                    <div className="filter-controls">
-                      <input type="text" placeholder={t.search} className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                      <label className="checkbox-filter"><input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} /><span>{t.renewalOnly}</span></label>
-                      <button onClick={() => { 
-                        const data = subscriptions?.map(s => ({...s, startDate: formatDateDisplay(s.startDate), endDate: formatDateDisplay(s.endDate)}));
-                        const ws = XLSX.utils.json_to_sheet(data || []); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, "Subman_Report.xlsx"); 
-                      }} className="btn-excel">📥</button>
-                    </div>
                   </div>
+
+                  <div className="filter-controls-refined" style={{ marginBottom: '1.5rem' }}>
+                    <input type="text" placeholder={t.search} className="search-input-refined" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                  </div>
+
+                  <div className="top-actions" style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: '1rem' }}>
+                    <label className="renewal-checkbox-large">
+                      <input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} />
+                      <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <span style={{ fontSize: '1.2rem' }}>🔄</span> {t.renewalOnly}
+                      </span>
+                    </label>
+                    <button onClick={handleExport} className="btn-export-main" title={t.export}>
+                      📊 {t.export}
+                    </button>
+                  </div>
+
                   {successMessage && <div className="success-banner">{successMessage}</div>}
+                  
                   <div className="form-card">
                      <form onSubmit={async (e) => { 
                        e.preventDefault(); 
@@ -428,9 +456,10 @@ function App() {
                        {editingId && <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary">{t.cancel}</button>}
                      </form>
                   </div>
+                  
                   <div className="table-responsive">
                     <table className="admin-table">
-                      <thead><tr><th>{t.id}</th><th>{t.service}</th><th>{t.subscribers}</th><th>{t.endDate}</th><th>{t.actions}</th></tr></thead>
+                      <thead><tr><th>{t.id}</th><th>{t.service}</th><th>{t.name}</th><th>{t.endDate}</th><th>{t.actions}</th></tr></thead>
                       <tbody>
                         {filteredSubscriptions.map(s => (
                           <tr key={s.id}>
