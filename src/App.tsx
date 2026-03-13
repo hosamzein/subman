@@ -1,11 +1,23 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import * as XLSX from 'xlsx';
-import {
-  PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
-  BarChart, Bar, XAxis, YAxis, CartesianGrid
-} from 'recharts';
-import { supabase } from './supabaseClient';
+import React, { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { Session, User } from '@supabase/supabase-js';
+import { supabase, supabaseAuthRedirectUrl } from './supabaseClient';
+import type {
+  DbNotificationRecord,
+  DbProfile,
+  DbSubscription,
+  NotificationRecord,
+  Profile,
+  SettingRecord,
+  Subscription,
+  SubscriptionDuration,
+} from './supabaseClient';
+import type {
+  IncomeDistributionItem,
+  ServiceDistributionItem,
+} from './components/AnalyticsCharts';
 import './App.css';
+
+const AnalyticsCharts = lazy(() => import('./components/AnalyticsCharts'));
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity', 'Gemini'];
 const SERVICE_CATEGORIES: Record<string, string> = {
@@ -23,6 +35,8 @@ const COUNTRY_CODES = [
   { code: '964', label: 'العراق (+964)' },
   { code: '974', label: 'قطر (+974)' },
 ];
+const SUPPORT_EMAIL = 'geminihossam8@gmail.com';
+const DEFAULT_WHATSAPP_MESSAGE = 'مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.';
 
 const translations = {
   ar: {
@@ -64,7 +78,7 @@ const translations = {
     user: "المستخدم",
     role: "الصلاحية",
     admin: "مدير",
-    editor: "محرر",
+    userLabel: "مستخدم",
     id: "ID",
     service: "الخدمة",
     cancel: "إلغاء",
@@ -88,14 +102,16 @@ const translations = {
     subDetail: "تفاصيل الاشتراك",
     subscriberDetail: "بيانات المشترك",
     pendingTitle: "الحساب قيد المراجعة",
-    pendingMsg: "حسابك قيد المراجعة حالياً من قبل الإدارة. يرجى المحاولة لاحقاً.",
+    pendingMsg: `حسابك قيد المراجعة حالياً من قبل الإدارة. يرجى مراجعة المسؤول عبر: ${SUPPORT_EMAIL}`,
     register: "تسجيل حساب جديد",
     alreadyHave: "لديك حساب بالفعل؟ دخول",
     needAccount: "ليس لديك حساب؟ سجل الآن",
     googleLogin: "الدخول بواسطة جوجل",
     status: "الحالة",
     approve: "تفعيل",
-    reject: "رفض"
+    reject: "رفض",
+    makeAdmin: "تعيين كمدير",
+    makeUser: "تعيين كمستخدم",
   },
   en: {
     title: "Subscription Management",
@@ -136,7 +152,7 @@ const translations = {
     user: "User",
     role: "Role",
     admin: "Admin",
-    editor: "Editor",
+    userLabel: "User",
     id: "ID",
     service: "Service",
     cancel: "Cancel",
@@ -160,32 +176,154 @@ const translations = {
     subDetail: "Subscription Details",
     subscriberDetail: "Subscriber Details",
     pendingTitle: "Account Pending",
-    pendingMsg: "Your account is currently pending approval by an administrator. Please check back later.",
+    pendingMsg: `Your account is currently pending approval. Please contact the administrator at ${SUPPORT_EMAIL}`,
     register: "Register New Account",
     alreadyHave: "Already have an account? Login",
     needAccount: "Don't have an account? Register",
     googleLogin: "Login with Google",
     status: "Status",
     approve: "Approve",
-    reject: "Reject"
+    reject: "Reject",
+    makeAdmin: "Make Admin",
+    makeUser: "Make User",
   }
 };
 
+type Language = keyof typeof translations;
+type Theme = 'dark' | 'light';
 type View = 'login' | 'dashboard' | 'subscribers' | 'users' | 'notifications' | 'settings';
+type AuthMode = 'login' | 'register';
+
+type SubscriptionFormData = Pick<
+  Subscription,
+  'service' | 'category' | 'duration' | 'name' | 'email' | 'facebook' | 'countryCode' | 'whatsapp' | 'startDate' | 'endDate' | 'payment' | 'workspace'
+>;
+
+type SubscriptionStatus = {
+  label: string;
+  className: 'badge-danger' | 'badge-warning' | 'badge-success';
+  needsRenewal: boolean;
+};
+
+type AnalyticsSummary = {
+  currentActive: number;
+  incomeDist: IncomeDistributionItem[];
+  periodIncome: number;
+  serviceDist: ServiceDistributionItem[];
+  totalInPeriod: number;
+};
+
+const getStoredLanguage = (): Language => {
+  const storedLanguage = localStorage.getItem('subman_lang');
+  return storedLanguage === 'en' ? 'en' : 'ar';
+};
+
+const getStoredTheme = (): Theme => {
+  const storedTheme = localStorage.getItem('subman_theme');
+  return storedTheme === 'light' ? 'light' : 'dark';
+};
+
+const createDefaultFormData = (): SubscriptionFormData => ({
+  service: 'Grok',
+  category: 'Artificial Intelligence',
+  duration: 'monthly',
+  name: '',
+  email: '',
+  facebook: '',
+  countryCode: '20',
+  whatsapp: '',
+  startDate: '',
+  endDate: '',
+  payment: 0,
+  workspace: '',
+});
+
+const normalizeRole = (role: DbProfile['role']): Profile['role'] => (role === 'admin' ? 'admin' : 'user');
+
+const normalizeProfile = (profile: DbProfile): Profile => ({
+  ...profile,
+  role: normalizeRole(profile.role),
+});
+
+const normalizeSubscription = (subscription: DbSubscription): Subscription => ({
+  id: subscription.id,
+  user_id: subscription.user_id,
+  service: subscription.service,
+  category: subscription.category,
+  duration: subscription.duration,
+  name: subscription.name,
+  email: subscription.email,
+  whatsapp: subscription.whatsapp,
+  facebook: subscription.facebook,
+  countryCode: subscription.countrycode,
+  startDate: subscription.startdate,
+  endDate: subscription.enddate,
+  payment: Number(subscription.payment),
+  workspace: subscription.workspace,
+  createdAt: subscription.createdat,
+});
+
+const normalizeNotification = (notification: DbNotificationRecord): NotificationRecord => ({
+  ...notification,
+  createdAt: notification.createdat,
+});
+
+const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
+  service: subscription.service,
+  category: subscription.category,
+  duration: subscription.duration,
+  name: subscription.name,
+  email: subscription.email,
+  whatsapp: subscription.whatsapp,
+  facebook: subscription.facebook,
+  countrycode: subscription.countryCode,
+  startdate: subscription.startDate,
+  enddate: subscription.endDate,
+  payment: subscription.payment,
+  workspace: subscription.workspace,
+});
+
+const formatDateDisplay = (dateStr: string) => {
+  if (!dateStr) return '';
+
+  const [year, month, day] = dateStr.split('-');
+  return `${day}/${month}/${year}`;
+};
+
+const calculateEndDate = (startDate: string, duration: SubscriptionDuration) => {
+  if (!startDate) return '';
+
+  const date = new Date(startDate);
+
+  if (duration === 'monthly') {
+    date.setMonth(date.getMonth() + 1);
+  } else if (duration === 'quarterly') {
+    date.setMonth(date.getMonth() + 3);
+  } else {
+    date.setFullYear(date.getFullYear() + 1);
+  }
+
+  return date.toISOString().split('T')[0];
+};
+
+const readSearchableValue = (value: string | null | undefined) => value?.toLowerCase() ?? '';
 
 function App() {
-  const [lang, setLang] = useState<'ar' | 'en'>(localStorage.getItem('subman_lang') as 'ar' | 'en' || 'ar');
-  const [theme, setTheme] = useState<'dark' | 'light'>(localStorage.getItem('subman_theme') as 'dark' | 'light' || 'dark');
-  const [currentView, setCurrentView] = useState<View>('login');
-  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+  const [lang, setLang] = useState<Language>(getStoredLanguage);
+  const [theme, setTheme] = useState<Theme>(getStoredTheme);
+  const [currentView, setCurrentView] = useState<View>('dashboard');
+  const [authMode, setAuthMode] = useState<AuthMode>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginData, setLoginData] = useState({ email: '', pass: '' });
-  const [currentUser, setCurrentUser] = useState<any>(null);
-  const [userProfile, setUserProfile] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [userProfile, setUserProfile] = useState<Profile | null>(null);
+  const userProfileRef = useRef<Profile | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const profileLoadingRef = useRef<string | null>(null);
 
-  const [subscriptions, setSubscriptions] = useState<any[]>([]);
-  const [allUsers, setAllUsers] = useState<any[]>([]);
-  const [notifications, setNotifications] = useState<any[]>([]);
+  const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [allUsers, setAllUsers] = useState<Profile[]>([]);
+  const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [waMessage, setWaMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
@@ -196,15 +334,7 @@ function App() {
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
 
-  const [formData, setFormData] = useState<{
-    service: string; category?: string; duration?: 'monthly' | 'quarterly' | 'yearly';
-    name: string; email: string; facebook: string; countryCode: string; whatsapp: string;
-    startDate: string; endDate: string; payment: number; workspace: string;
-  }>({
-    service: 'Grok', category: 'Artificial Intelligence', duration: 'monthly',
-    name: '', email: '', facebook: '', countryCode: '20', whatsapp: '',
-    startDate: '', endDate: '', payment: 0, workspace: ''
-  });
+  const [formData, setFormData] = useState<SubscriptionFormData>(createDefaultFormData);
   const t = translations[lang];
 
   useEffect(() => {
@@ -214,107 +344,212 @@ function App() {
   }, [lang]);
 
   useEffect(() => {
+    userProfileRef.current = userProfile;
+  }, [userProfile]);
+
+  useEffect(() => {
     localStorage.setItem('subman_theme', theme);
     document.body.className = theme === 'light' ? 'light-theme' : '';
   }, [theme]);
 
   useEffect(() => {
-    const fetchSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        setIsLoggedIn(true);
-        setCurrentUser(session.user);
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-        setUserProfile(profile);
-      }
-    };
-    fetchSession();
+    let timer: ReturnType<typeof setTimeout> | undefined;
 
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        setIsLoggedIn(true);
-        setCurrentUser(session.user);
-        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
-        setUserProfile(profile);
-      } else {
-        setIsLoggedIn(false);
-        setCurrentUser(null);
-        setUserProfile(null);
-        setCurrentView('login');
-      }
+    if (isLoadingProfile) {
+      timer = setTimeout(() => {
+        setIsLoadingProfile(false);
+        profileLoadingRef.current = null;
+      }, 5000);
+    }
+
+    return () => clearTimeout(timer);
+  }, [isLoadingProfile]);
+
+  const loadProfile = useCallback(async (user: User): Promise<Profile> => {
+    const { data: profile, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .maybeSingle<DbProfile>();
+
+    if (profile && !error) {
+      return normalizeProfile(profile);
+    }
+
+    const newProfile: Profile = {
+      id: user.id,
+      username: user.email?.split('@')[0] || 'User',
+      role: 'user',
+      status: 'pending',
+    };
+
+    const { data: upsertedProfile } = await supabase
+      .from('profiles')
+      .upsert(newProfile)
+      .select('*')
+      .single();
+
+    return upsertedProfile ?? newProfile;
+  }, []);
+
+  const syncSession = useCallback(async (session: Session | null) => {
+    if (!session) {
+      setIsLoggedIn(false);
+      setCurrentUser(null);
+      setUserProfile(null);
+      setIsLoadingProfile(false);
+      profileLoadingRef.current = null;
+      setCurrentView('login');
+      return;
+    }
+
+    setIsLoggedIn(true);
+    setCurrentUser(session.user);
+    setCurrentView((previousView) => (previousView === 'login' ? 'dashboard' : previousView));
+
+    if (profileLoadingRef.current === session.user.id) {
+      return;
+    }
+
+    if (userProfileRef.current?.id === session.user.id) {
+      return;
+    }
+
+    setIsLoadingProfile(true);
+    profileLoadingRef.current = session.user.id;
+
+    try {
+      const profile = await loadProfile(session.user);
+      setUserProfile(profile);
+    } catch (error) {
+      console.error('Profile fetch error:', error);
+    } finally {
+      setIsLoadingProfile(false);
+      profileLoadingRef.current = null;
+    }
+  }, [loadProfile]);
+
+  useEffect(() => {
+    void supabase.auth.getSession().then(({ data: { session } }) => syncSession(session));
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      void syncSession(session);
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, []);
+  }, [syncSession]);
 
   useEffect(() => {
-    if (!isLoggedIn || !currentUser) return;
-    
-    if (userProfile && userProfile.status === 'pending' && userProfile.role !== 'admin') {
+    if (!currentUser) {
+      return;
+    }
+
+    const profileChannel = supabase
+      .channel(`profile-${currentUser.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'profiles',
+          filter: `id=eq.${currentUser.id}`,
+        },
+        async () => {
+          const profile = await loadProfile(currentUser);
+          setUserProfile(profile);
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(profileChannel);
+    };
+  }, [currentUser, loadProfile]);
+
+  useEffect(() => {
+    if (!isLoggedIn || !currentUser || (userProfile?.status === 'pending' && userProfile.role !== 'admin')) {
+      setSubscriptions([]);
+      setAllUsers([]);
+      setNotifications([]);
+      setWaMessage(DEFAULT_WHATSAPP_MESSAGE);
+      if (userProfile?.status === 'pending' && userProfile.role !== 'admin') {
+        setCurrentView('dashboard');
+      }
       return;
     }
 
     const fetchData = async () => {
-      let subQuery = supabase.from('subscriptions').select('*');
-      if (userProfile?.role !== 'admin') {
-        subQuery = subQuery.eq('user_id', currentUser.id);
-      }
-      const { data: subs } = await subQuery.order('createdAt', { ascending: false });
-      setSubscriptions(subs || []);
+      const subscriptionsQuery = userProfile?.role === 'admin'
+        ? supabase.from('subscriptions').select('*')
+        : supabase.from('subscriptions').select('*').eq('user_id', currentUser.id);
 
-      if (userProfile?.role === 'admin') {
-        const { data: profiles } = await supabase.from('profiles').select('*');
-        setAllUsers(profiles || []);
-      }
+      const profilesPromise = userProfile?.role === 'admin'
+        ? supabase.from('profiles').select('*')
+        : Promise.resolve({ data: null, error: null });
 
-      const { data: settings } = await supabase.from('settings').select('*').eq('id', 'whatsapp_message').single();
-      if (settings) setWaMessage(settings.value);
-      else setWaMessage("مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.");
+      const [subscriptionsResult, profilesResult, settingsResult, notificationsResult] = await Promise.all([
+        subscriptionsQuery.order('createdat', { ascending: false }),
+        profilesPromise,
+        supabase.from('settings').select('*').eq('id', 'whatsapp_message').maybeSingle<SettingRecord>(),
+        supabase.from('notifications').select('*').eq('user_id', currentUser.id).order('createdat', { ascending: false }),
+      ]);
 
-      const { data: notifs } = await supabase.from('notifications').select('*').eq('user_id', currentUser.id).order('createdAt', { ascending: false });
-      setNotifications(notifs || []);
+      setSubscriptions((subscriptionsResult.data as DbSubscription[] | null)?.map(normalizeSubscription) ?? []);
+      setAllUsers((profilesResult.data as DbProfile[] | null)?.map(normalizeProfile) ?? []);
+      setWaMessage(settingsResult.data?.value ?? DEFAULT_WHATSAPP_MESSAGE);
+      setNotifications((notificationsResult.data as DbNotificationRecord[] | null)?.map(normalizeNotification) ?? []);
     };
 
-    fetchData();
+    void fetchData();
 
-    const subChannel = supabase.channel('schema-db-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => fetchData())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchData())
+    const subChannel = supabase
+      .channel(`schema-db-changes-${currentUser.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
+        void fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
+        void fetchData();
+      })
       .subscribe();
 
     return () => {
       supabase.removeChannel(subChannel);
     };
-  }, [isLoggedIn, currentUser, userProfile]);
+  }, [currentUser, isLoggedIn, userProfile]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const { error } = await supabase.auth.signInWithPassword({
       email: loginData.email,
       password: loginData.pass,
     });
+
     if (error) alert(error.message);
   };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
+
     const { data, error } = await supabase.auth.signUp({
       email: loginData.email,
       password: loginData.pass,
     });
+
     if (error) {
       alert(error.message);
       return;
     }
+
     if (data.user) {
-      await supabase.from('profiles').insert([{ 
-        id: data.user.id, 
+      await supabase.from('profiles').upsert({
+        id: data.user.id,
         username: loginData.email.split('@')[0],
-        role: 'editor',
-        status: 'pending'
-      }]);
+        role: 'user',
+        status: 'pending',
+      });
       alert(t.pendingMsg);
     }
   };
@@ -322,7 +557,11 @@ function App() {
   const handleGoogleLogin = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
+      options: {
+        redirectTo: supabaseAuthRedirectUrl || window.location.origin,
+      },
     });
+
     if (error) alert(error.message);
   };
 
@@ -330,87 +569,107 @@ function App() {
     await supabase.auth.signOut();
   };
 
-  const formatDateDisplay = (dateStr: string) => {
-    if (!dateStr) return '';
-    const [year, month, day] = dateStr.split('-');
-    return `${day}/${month}/${year}`;
+  const resetForm = () => {
+    setFormData(createDefaultFormData());
+    setEditingId(null);
   };
 
-  const sendWhatsApp = (sub: any) => {
-    let msg = waMessage.replace('{name}', sub.name).replace('{service}', sub.service).replace('{date}', formatDateDisplay(sub.endDate));
+  const sendWhatsApp = (sub: Subscription) => {
+    const message = waMessage
+      .replace('{name}', sub.name)
+      .replace('{service}', sub.service)
+      .replace('{date}', formatDateDisplay(sub.endDate));
     const fullNumber = `${sub.countryCode}${sub.whatsapp.replace(/^0+/, '')}`;
-    const url = `https://api.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(msg)}`;
+    const url = `https://api.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
   };
 
-  const getStatus = (endDate: string) => {
+  const getStatus = useCallback((endDate: string): SubscriptionStatus => {
     const end = new Date(endDate);
     const diff = Math.ceil((end.getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-    if (diff < 0) return { label: lang === 'ar' ? 'منتهي' : 'Expired', class: 'badge-danger', needsRenewal: true };
-    if (diff <= 2) return { label: lang === 'ar' ? 'تجديد قريباً' : 'Renew Soon', class: 'badge-warning', needsRenewal: true };
-    return { label: lang === 'ar' ? 'نشط' : 'Active', class: 'badge-success', needsRenewal: false };
-  };
 
-  const calculateEndDate = (startDate: string, duration: 'monthly' | 'quarterly' | 'yearly') => {
-    if (!startDate) return '';
-    const date = new Date(startDate);
-    if (duration === 'monthly') date.setMonth(date.getMonth() + 1);
-    else if (duration === 'quarterly') date.setMonth(date.getMonth() + 3);
-    else if (duration === 'yearly') date.setFullYear(date.getFullYear() + 1);
-    return date.toISOString().split('T')[0];
-  };
+    if (diff < 0) {
+      return { label: lang === 'ar' ? 'منتهي' : 'Expired', className: 'badge-danger', needsRenewal: true };
+    }
 
-  const handleRenewClick = (s: any) => {
-    const newStartDate = s.endDate;
-    const currentDuration = s.duration || 'monthly';
+    if (diff <= 2) {
+      return { label: lang === 'ar' ? 'تجديد قريباً' : 'Renew Soon', className: 'badge-warning', needsRenewal: true };
+    }
+
+    return { label: lang === 'ar' ? 'نشط' : 'Active', className: 'badge-success', needsRenewal: false };
+  }, [lang]);
+
+  const handleRenewClick = (subscription: Subscription) => {
+    const newStartDate = subscription.endDate;
+    const currentDuration = subscription.duration || 'monthly';
     const newEndDate = calculateEndDate(newStartDate, currentDuration);
+
     setFormData({
-      ...s,
+      ...subscription,
       startDate: newStartDate,
       endDate: newEndDate,
       duration: currentDuration,
-      category: s.category || SERVICE_CATEGORIES[s.service] || ''
+      category: subscription.category || SERVICE_CATEGORIES[subscription.service] || '',
     });
-    setEditingId(s.id!);
+
+    setEditingId(subscription.id);
     window.scrollTo(0, 0);
   };
 
   const filteredSubscriptions = useMemo(() => {
-    if (!subscriptions) return [];
     return subscriptions.filter(sub => {
       const status = getStatus(sub.endDate);
-      if (showOnlyRenewals && !status.needsRenewal) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
-        return sub.name.toLowerCase().includes(q) || sub.email.toLowerCase().includes(q) || sub.whatsapp.toLowerCase().includes(q);
+
+      if (showOnlyRenewals && !status.needsRenewal) {
+        return false;
       }
+
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+
+        return [sub.name, sub.email, sub.whatsapp].some((value) => readSearchableValue(value).includes(query));
+      }
+
       return true;
     });
-  }, [subscriptions, searchQuery, showOnlyRenewals, lang]);
+  }, [getStatus, searchQuery, showOnlyRenewals, subscriptions]);
 
-  const analytics = useMemo(() => {
-    if (!subscriptions) return { periodIncome: 0, totalInPeriod: 0, currentActive: 0, serviceDist: [], incomeDist: [] };
-    const from = new Date(statsFromDate); const to = new Date(statsToDate); const today = new Date();
-    const sc = {} as any; const si = {} as any;
-    let pi = 0; let tip = 0; let ca = 0;
+  const analytics = useMemo<AnalyticsSummary>(() => {
+    const from = new Date(statsFromDate);
+    const to = new Date(statsToDate);
+    const today = new Date();
+    const serviceCounts = new Map<string, number>();
+    const serviceIncome = new Map<string, number>();
+    let periodIncome = 0;
+    let totalInPeriod = 0;
+    let currentActive = 0;
+
     subscriptions.forEach(sub => {
-      if (new Date(sub.endDate) >= today) ca++;
-      const ss = new Date(sub.startDate);
-      if (ss >= from && ss <= to) {
-        pi += Number(sub.payment); tip++;
-        sc[sub.service] = (sc[sub.service] || 0) + 1;
-        si[sub.service] = (si[sub.service] || 0) + Number(sub.payment);
+      if (new Date(sub.endDate) >= today) {
+        currentActive += 1;
+      }
+
+      const subscriptionStartDate = new Date(sub.startDate);
+      if (subscriptionStartDate >= from && subscriptionStartDate <= to) {
+        periodIncome += Number(sub.payment);
+        totalInPeriod += 1;
+        serviceCounts.set(sub.service, (serviceCounts.get(sub.service) ?? 0) + 1);
+        serviceIncome.set(sub.service, (serviceIncome.get(sub.service) ?? 0) + Number(sub.payment));
       }
     });
+
     return {
-      periodIncome: pi, totalInPeriod: tip, currentActive: ca,
-      serviceDist: Object.keys(sc).map(n => ({ name: n, value: sc[n] })),
-      incomeDist: Object.keys(si).map(n => ({ name: n, amount: si[n] }))
+      periodIncome,
+      totalInPeriod,
+      currentActive,
+      serviceDist: Array.from(serviceCounts, ([name, value]) => ({ name, value })),
+      incomeDist: Array.from(serviceIncome, ([name, amount]) => ({ name, amount })),
     };
   }, [subscriptions, statsFromDate, statsToDate]);
 
-  const handleExport = () => {
-    const data = subscriptions?.map(s => ({
+  const handleExport = async () => {
+    const { utils, writeFile } = await import('xlsx');
+    const data = subscriptions.map(s => ({
       [t.id]: s.id,
       [t.service]: s.service,
       [t.category]: s.category || SERVICE_CATEGORIES[s.service] || '',
@@ -421,12 +680,13 @@ function App() {
       [t.endDate]: formatDateDisplay(s.endDate),
       [t.duration]: s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly,
       [t.amount]: s.payment,
-      [t.workspace]: s.workspace
+      [t.workspace]: s.workspace,
     }));
-    const ws = XLSX.utils.json_to_sheet(data || []);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Subscriptions");
-    XLSX.writeFile(wb, "Subman_Export.xlsx");
+
+    const worksheet = utils.json_to_sheet(data);
+    const workbook = utils.book_new();
+    utils.book_append_sheet(workbook, worksheet, 'Subscriptions');
+    writeFile(workbook, 'Subman_Export.xlsx');
   };
 
   return (
@@ -442,7 +702,12 @@ function App() {
                   <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
                 </div>
                 <button type="submit" className="login-submit-btn">{t.enter}</button>
-                <button type="button" onClick={handleGoogleLogin} className="btn-secondary" style={{ marginTop: '10px', width: '100%' }}>{t.googleLogin}</button>
+                <div style={{ margin: '15px 0', display: 'flex', alignItems: 'center', gap: '10px', color: '#a0a0a0' }}>
+                  <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} /> {lang === 'ar' ? 'أو' : 'OR'} <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} />
+                </div>
+                <button type="button" onClick={handleGoogleLogin} className="google-btn">
+                  <span style={{ fontSize: '1.2rem' }}>G</span> {t.googleLogin}
+                </button>
                 <p className="auth-switch" onClick={() => setAuthMode('register')}>{t.needAccount}</p>
               </form>
             ) : (
@@ -452,17 +717,35 @@ function App() {
                   <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
                 </div>
                 <button type="submit" className="login-submit-btn">{t.register}</button>
+                <div style={{ margin: '15px 0', display: 'flex', alignItems: 'center', gap: '10px', color: '#a0a0a0' }}>
+                  <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} /> {lang === 'ar' ? 'أو' : 'OR'} <hr style={{ flex: 1, border: '0', borderTop: '1px solid #e0e0e0' }} />
+                </div>
+                <button type="button" onClick={handleGoogleLogin} className="google-btn">
+                  <span style={{ fontSize: '1.2rem' }}>G</span> {t.googleLogin}
+                </button>
                 <p className="auth-switch" onClick={() => setAuthMode('login')}>{t.alreadyHave}</p>
               </form>
             )}
           </div>
         </div>
-      ) : userProfile?.status === 'pending' && userProfile?.role !== 'admin' ? (
+      ) : isLoadingProfile ? (
         <div className="login-container">
           <div className="login-card" style={{ textAlign: 'center' }}>
-            <h2>{t.pendingTitle}</h2>
-            <p style={{ margin: '20px 0', lineHeight: 1.6 }}>{t.pendingMsg}</p>
-            <button onClick={handleLogout} className="btn-secondary">{t.logout}</button>
+            <div className="loader"></div>
+            <p style={{ marginTop: '20px' }}>{lang === 'ar' ? 'جاري تحميل البيانات...' : 'Loading profile...'}</p>
+          </div>
+        </div>
+      ) : userProfile?.status === 'pending' && userProfile?.role !== 'admin' ? (
+        <div className="login-container">
+          <div className="pending-card animate-fade">
+            <div style={{ fontSize: '3.5rem', marginBottom: '1.5rem' }}>⏳</div>
+            <h2 style={{ fontSize: '2rem', fontWeight: 800, marginBottom: '1rem' }}>{t.pendingTitle}</h2>
+            <p style={{ fontSize: '1.1rem', color: '#666', lineHeight: 1.6, marginBottom: '2.5rem' }}>
+              {t.pendingMsg}
+            </p>
+            <button onClick={handleLogout} className="btn-secondary">
+              🚪 {t.logout}
+            </button>
           </div>
         </div>
       ) : (
@@ -529,18 +812,28 @@ function App() {
                     </div>
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                      <div className="chart-card" style={{ margin: 0 }}>
-                        <h3>{t.serviceDist}</h3>
-                        <div style={{ height: '300px' }}>
-                          <ResponsiveContainer><PieChart><Pie data={analytics.serviceDist} innerRadius={60} outerRadius={80} dataKey="value">{analytics.serviceDist.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer>
-                        </div>
-                      </div>
-                      <div className="chart-card" style={{ margin: 0 }}>
-                        <h3>{t.incomeDist}</h3>
-                        <div style={{ height: '300px' }}>
-                          <ResponsiveContainer><BarChart data={analytics.incomeDist}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
-                        </div>
-                      </div>
+                      <Suspense
+                        fallback={
+                          <>
+                            <div className="chart-card chart-card-loading" style={{ margin: 0 }}>
+                              <h3>{t.serviceDist}</h3>
+                              <div className="chart-placeholder">Loading...</div>
+                            </div>
+                            <div className="chart-card chart-card-loading" style={{ margin: 0 }}>
+                              <h3>{t.incomeDist}</h3>
+                              <div className="chart-placeholder">Loading...</div>
+                            </div>
+                          </>
+                        }
+                      >
+                        <AnalyticsCharts
+                          colors={COLORS}
+                          incomeDist={analytics.incomeDist}
+                          incomeLabel={t.incomeDist}
+                          serviceDist={analytics.serviceDist}
+                          serviceLabel={t.serviceDist}
+                        />
+                      </Suspense>
                     </div>
                   </div>
                 </div>
@@ -561,7 +854,7 @@ function App() {
 
               {currentView === 'notifications' && (
                 <div className="notifications-view animate-fade">
-                  <div className="header-actions"><h2>{t.notifCenter}</h2><button onClick={() => supabase.from('notifications').delete().eq('user_id', currentUser.id)} className="btn-secondary">{t.clearAll}</button></div>
+                  <div className="header-actions"><h2>{t.notifCenter}</h2><button onClick={() => { if (currentUser) { void supabase.from('notifications').delete().eq('user_id', currentUser.id); } }} className="btn-secondary">{t.clearAll}</button></div>
                   <div className="notifications-list">
                     {!notifications || notifications.length === 0 ? <p className="empty-msg">{t.noNotifs}</p> :
                       notifications.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</small></div><button onClick={() => supabase.from('notifications').delete().eq('id', n.id)} className="btn-close">×</button></div>))
@@ -627,16 +920,19 @@ function App() {
                     <div style={{ padding: '2.5rem', borderBottom: '1px solid #f0f0f0' }}>
                       <form onSubmit={async (e) => {
                         e.preventDefault();
+                        if (!currentUser) {
+                          return;
+                        }
                         if (editingId) { 
-                          await supabase.from('subscriptions').update(formData).eq('id', editingId);
+                          await supabase.from('subscriptions').update(toDbSubscriptionPayload(formData)).eq('id', editingId);
                           setSuccessMessage(t.updated); 
                         }
                         else { 
-                          await supabase.from('subscriptions').insert([{ ...formData, user_id: currentUser.id, createdAt: new Date().toISOString() }]);
+                          await supabase.from('subscriptions').insert([{ ...toDbSubscriptionPayload(formData), user_id: currentUser.id, createdat: new Date().toISOString() }]);
                           setSuccessMessage(t.saved); 
                         }
-                        setFormData({ service: 'Grok', category: 'Artificial Intelligence', duration: 'monthly', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '', startDate: '', endDate: '', payment: 0, workspace: '' });
-                        setEditingId(null); setTimeout(() => setSuccessMessage(''), 3000);
+                        resetForm();
+                        setTimeout(() => setSuccessMessage(''), 3000);
                       }} className="admin-form">
 
                         <div className="form-section">
@@ -718,7 +1014,7 @@ function App() {
                             <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
                               <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
                               {editingId && (
-                                <button type="button" onClick={() => { setEditingId(null); setFormData({ service: 'Grok', category: 'Artificial Intelligence', duration: 'monthly', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '', startDate: '', endDate: '', payment: 0, workspace: '' }); }} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
+                                <button type="button" onClick={resetForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
                               )}
                             </div>
                           </div>
@@ -750,7 +1046,7 @@ function App() {
                                 <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>+{s.countryCode} {s.whatsapp}</div>
                               </td>
                               <td>
-                                <span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span>
+                                <span className={`badge ${getStatus(s.endDate).className}`}>{formatDateDisplay(s.endDate)}</span>
                                 <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#a0a0a0' }}>
                                   {s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}
                                 </div>
@@ -786,7 +1082,7 @@ function App() {
                               {u.status}
                             </span>
                           </td>
-                          <td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.editor}</span></td>
+                          <td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.userLabel}</span></td>
                           <td>
                             <div style={{ display: 'flex', gap: '5px' }}>
                               {u.status === 'pending' && (
@@ -795,8 +1091,12 @@ function App() {
                                   <button onClick={() => supabase.from('profiles').update({ status: 'rejected' }).eq('id', u.id)} className="btn-danger" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.reject}</button>
                                 </>
                               )}
-                              {u.role !== 'admin' && (
-                                <button onClick={() => supabase.from('profiles').update({ role: 'admin' }).eq('id', u.id)} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>Make Admin</button>
+                              {u.role !== 'admin' ? (
+                                <button onClick={() => supabase.from('profiles').update({ role: 'admin' }).eq('id', u.id)} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.makeAdmin}</button>
+                              ) : (
+                                u.id !== currentUser?.id && (
+                                  <button onClick={() => supabase.from('profiles').update({ role: 'user' }).eq('id', u.id)} className="btn-secondary" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.makeUser}</button>
+                                )
                               )}
                               <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('profiles').delete().eq('id', u.id); }} className="btn-delete" title={t.logout}>🗑️</button>
                             </div>

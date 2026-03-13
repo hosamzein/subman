@@ -1,15 +1,58 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = 'https://bhszkqnksnyppmumssog.supabase.co';
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJoc3prcW5rc255cHBtdW1zc29nIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzMzOTU2NDksImV4cCI6MjA4ODk3MTY0OX0.2rUYgegZz4zIORn6U9X7DeEb2VCacmdsiRsfkozb-24';
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+if (!supabaseUrl || !supabaseAnonKey) {
+  throw new Error('Missing Supabase environment variables. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
+}
+
+export const supabaseAuthRedirectUrl = import.meta.env.VITE_SUPABASE_AUTH_REDIRECT_URL;
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  auth: {
+    flowType: 'pkce',
+    autoRefreshToken: true,
+    persistSession: true,
+    detectSessionInUrl: true,
+  },
+});
+
+export type UserRole = 'admin' | 'user';
+export type DbUserRole = 'admin' | 'editor' | 'user';
+export type ProfileStatus = 'pending' | 'approved' | 'rejected';
+export type SubscriptionDuration = 'monthly' | 'quarterly' | 'yearly';
+
+export type DbProfile = {
+  id: string;
+  username: string;
+  role: DbUserRole;
+  status: ProfileStatus;
+};
 
 export type Profile = {
   id: string;
   username: string;
-  role: 'admin' | 'editor';
-  status: 'pending' | 'approved' | 'rejected';
+  role: UserRole;
+  status: ProfileStatus;
+};
+
+export type DbSubscription = {
+  id: number;
+  user_id: string;
+  service: string;
+  category?: string;
+  duration: SubscriptionDuration;
+  name: string;
+  email: string;
+  whatsapp: string;
+  facebook: string;
+  countrycode: string;
+  startdate: string;
+  enddate: string;
+  payment: number;
+  workspace: string;
+  createdat: string;
 };
 
 export type Subscription = {
@@ -17,7 +60,7 @@ export type Subscription = {
   user_id: string;
   service: string;
   category?: string;
-  duration: 'monthly' | 'quarterly' | 'yearly';
+  duration: SubscriptionDuration;
   name: string;
   email: string;
   whatsapp: string;
@@ -28,4 +71,25 @@ export type Subscription = {
   payment: number;
   workspace: string;
   createdAt: string;
+};
+
+export type DbNotificationRecord = {
+  id: number;
+  user_id: string;
+  message: string;
+  type: 'info' | 'warning' | 'danger';
+  createdat: string;
+};
+
+export type NotificationRecord = {
+  id: number;
+  user_id: string;
+  message: string;
+  type: 'info' | 'warning' | 'danger';
+  createdAt: string;
+};
+
+export type SettingRecord = {
+  id: string;
+  value: string;
 };
