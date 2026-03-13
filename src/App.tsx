@@ -43,7 +43,7 @@ function App() {
     service: 'Grok', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '',
     startDate: '', endDate: '', payment: 0, workspace: ''
   });
-  const [userFormData, setUserFormData] = useState({ username: '', password: '', role: 'editor' as const });
+  const [userFormData, setUserFormData] = useState({ username: '', password: '', role: 'editor' as 'admin' | 'editor' });
   const [waMessage, setWaMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 

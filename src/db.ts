@@ -4,7 +4,7 @@ interface User {
   id?: number;
   username: string;
   password: string;
-  role: 'admin' | 'editor';
+  role: 'admin' | 'editor'; // Fixed type
   createdAt: string;
 }
 
@@ -14,7 +14,7 @@ interface Subscription {
   name: string;
   email: string;
   facebook: string;
-  countryCode: string; // New mandatory field
+  countryCode: string;
   whatsapp: string;
   startDate: string;
   endDate: string;
@@ -42,7 +42,6 @@ const db = new Dexie('SubmanDB') as Dexie & {
   settings: EntityTable<Setting, 'id'>;
 };
 
-// Schema declaration:
 db.version(8).stores({
   subscriptions: '++id, service, name, email, whatsapp, facebook, endDate',
   users: '++id, &username',
