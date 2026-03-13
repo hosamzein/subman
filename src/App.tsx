@@ -6,6 +6,7 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
+import { HARDCODED_USERS } from './assets/credentials';
 import './App.css';
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity', 'Gemini'];
@@ -248,13 +249,11 @@ function App() {
     const inputUser = loginData.user.trim().toLowerCase();
     const inputPass = loginData.pass; // Passwords should be exact, no trim
 
-    if (inputUser === 'admin' && inputPass === 'P@$$w0rd') {
-      setIsLoggedIn(true); setCurrentUser({ username: 'admin', role: 'admin' }); setCurrentView('dashboard');
-      return;
-    }
-    
-    if (inputUser === 'amr' && inputPass === 'P@$$amr') {
-      setIsLoggedIn(true); setCurrentUser({ username: 'amr', role: 'admin' }); setCurrentView('dashboard');
+    const hardcodedUser = HARDCODED_USERS.find(u => u.username === inputUser && u.password === inputPass);
+    if (hardcodedUser) {
+      setIsLoggedIn(true); 
+      setCurrentUser(hardcodedUser); 
+      setCurrentView('dashboard');
       return;
     }
     
