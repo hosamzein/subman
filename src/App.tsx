@@ -341,7 +341,7 @@ function App() {
                         <tr key={u.id}>
                           <td>{u.username}</td><td>{u.role === 'admin' ? 'مدير' : 'محرر'}</td>
                           <td>
-                            <button onClick={() => { setUserFormData({username: u.username, password: u.password, role: u.role}); setEditingUserId(u.id!); window.scrollTo(0,0); }} className="btn-edit" title="تعديل">✏️</button>
+                            <button onClick={() => { setUserFormData({username: u.username, password: u.password, role: u.role as 'admin' | 'editor'}); setEditingUserId(u.id!); window.scrollTo(0,0); }} className="btn-edit" title="تعديل">✏️</button>
                             <button onClick={() => { if(window.confirm('حذف؟')) db.users.delete(u.id!); }} className="btn-delete" title="حذف">🗑️</button>
                           </td>
                         </tr>
