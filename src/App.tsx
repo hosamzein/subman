@@ -1052,10 +1052,12 @@ function App() {
                                 </div>
                               </td>
                               <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
-                                <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
-                                <button onClick={() => { setFormData({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
-                                <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
+                                <div className="subscriber-actions">
+                                  <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
+                                  <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
+                                  <button onClick={() => { setFormData({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
+                                  <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1084,7 +1086,7 @@ function App() {
                           </td>
                           <td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.userLabel}</span></td>
                           <td>
-                            <div style={{ display: 'flex', gap: '5px' }}>
+                            <div className="user-actions">
                               {u.status === 'pending' && (
                                 <>
                                   <button onClick={() => supabase.from('profiles').update({ status: 'approved' }).eq('id', u.id)} className="btn-success" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.approve}</button>
