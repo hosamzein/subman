@@ -335,15 +335,17 @@ function App() {
   };
 
   return (
-    <div className={`app-layout ${theme}-theme`}>
+    <div className={`app-layout ${theme}-theme ${!isLoggedIn ? 'is-login-page' : ''}`}>
       {!isLoggedIn ? (
         <div className="login-container">
           <div className="login-card">
             <h1>{t.title}</h1>
-            <form onSubmit={handleLogin}>
-              <input type="text" placeholder={t.username} value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} required />
-              <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
-              <button type="submit" className="btn-primary">{t.enter}</button>
+            <form onSubmit={handleLogin} className="login-form">
+              <div className="login-inputs-row">
+                <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
+                <input type="text" placeholder={t.username} value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} required />
+              </div>
+              <button type="submit" className="login-submit-btn">{t.enter}</button>
             </form>
           </div>
         </div>
