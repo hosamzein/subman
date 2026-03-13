@@ -84,7 +84,9 @@ const translations = {
     quarterly: "ربع سنوي",
     yearly: "سنوي",
     category: "الفئة",
-    renew: "تجديد"
+    renew: "تجديد",
+    subDetail: "تفاصيل الاشتراك",
+    subscriberDetail: "بيانات المشترك"
   },
   en: {
     title: "Subscription Management",
@@ -100,16 +102,16 @@ const translations = {
     logout: "Logout",
     periodIncome: "Period Income",
     totalActive: "Total Active",
-    newSubs: "New Subscription",
-    activeNow: "Accounts active now",
+    newSubs: "New Subs",
+    activeNow: "Active accounts",
     serviceDist: "Service Distribution",
-    incomeDist: "Service Income",
+    incomeDist: "Income Distribution",
     notifCenter: "Notification Center",
     clearAll: "Clear All",
     noNotifs: "No new notifications",
     manageSubs: "Manage Subscribers",
     search: "Quick search...",
-    renewalOnly: "Renew only",
+    renewalOnly: "Renewal Only",
     save: "Save",
     update: "Update",
     add: "Add",
@@ -121,7 +123,7 @@ const translations = {
     amount: "Amount",
     workspace: "Workspace",
     actions: "Actions",
-    manageUsers: "Access & User Management",
+    manageUsers: "Manage Users & Permissions",
     user: "User",
     role: "Role",
     admin: "Admin",
@@ -130,13 +132,13 @@ const translations = {
     service: "Service",
     cancel: "Cancel",
     rights: "All rights reserved",
-    owner: "Hossam Zein",
-    confirmDelete: "Confirm delete?",
+    owner: "Hosam Zein",
+    confirmDelete: "Delete this subscription?",
     userExists: "User already exists!",
-    saved: "Saved successfully!",
-    updated: "Updated successfully!",
-    waTemplate: "Default WhatsApp Message",
-    waHelp: "Use tags: {name} for Name, {service} for Service, {date} for End Date.",
+    saved: "Saved!",
+    updated: "Updated!",
+    waTemplate: "Default WA Message",
+    waHelp: "Use: {name}, {service}, {date} for auto-replacement.",
     export: "Export Data",
     theme: "Theme",
     lang: "Language",
@@ -145,7 +147,9 @@ const translations = {
     quarterly: "Quarterly",
     yearly: "Yearly",
     category: "Category",
-    renew: "Renew"
+    renew: "Renew",
+    subDetail: "Subscription Details",
+    subscriberDetail: "Subscriber Details"
   }
 };
 
@@ -238,7 +242,7 @@ function App() {
   const formatDateDisplay = (dateStr: string) => {
     if (!dateStr) return '';
     const [year, month, day] = dateStr.split('-');
-    return `${month}/${day}/${year}`;
+    return `${day}/${month}/${year}`;
   };
 
   const sendWhatsApp = (sub: any) => {
@@ -342,8 +346,8 @@ function App() {
             <h1>{t.title}</h1>
             <form onSubmit={handleLogin} className="login-form">
               <div className="login-inputs-row">
-                <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
                 <input type="text" placeholder={t.username} value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} required />
+                <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
               </div>
               <button type="submit" className="login-submit-btn">{t.enter}</button>
             </form>
@@ -519,84 +523,92 @@ function App() {
                          setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
                          setEditingId(null); setTimeout(()=>setSuccessMessage(''), 3000);
                        }} className="admin-form">
-                         <div className="form-row">
-                           <div className="input-field-group">
-                             <label>{t.service}</label>
-                             <select value={formData.service} onChange={e => {
-                                 const newSvc = e.target.value;
-                                 setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
-                               }} required>
-                               {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                             </select>
-                           </div>
-                           <div className="input-field-group">
-                             <label>{t.category}</label>
-                             <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} />
-                           </div>
-                           <div className="input-field-group">
-                             <label>{t.name}</label>
-                             <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
-                           </div>
-                           <div className="input-field-group">
-                             <label>{t.email}</label>
-                             <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-                           </div>
-                         </div>
-                         <div className="form-row" style={{ marginTop: '1.5rem' }}>
-                           <div className="input-field-group">
-                              <label>{t.whatsapp}</label>
-                              <div style={{display:'flex', gap:'0.5rem', direction:'ltr'}}>
-                                 <select style={{width:'80px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
-                                   {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                                 </select>
-                                 <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required />
-                              </div>
-                           </div>
-                           <div className="input-field-group">
-                             <label>{t.duration === 'Duration' ? 'Duration' : 'المدة'}</label> 
-                             <select value={formData.duration || 'monthly'} onChange={e => {
-                                 const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
-                                 if (formData.startDate) {
-                                   const newEnd = calculateEndDate(formData.startDate, dur);
-                                   setFormData({...formData, duration: dur, endDate: newEnd});
-                                 } else setFormData({...formData, duration: dur});
-                               }} required>
-                                 <option value="monthly">{t.monthly}</option>
-                                 <option value="quarterly">{t.quarterly}</option>
-                                 <option value="yearly">{t.yearly}</option>
-                             </select>
-                           </div>
-                           <div className="input-field-group">
-                             <label>{t.startDate}</label>
-                             <input type="date" value={formData.startDate} onChange={e => {
-                               const strt = e.target.value;
-                               const dur = formData.duration || 'monthly';
-                               if (strt) setFormData({...formData, startDate: strt, endDate: calculateEndDate(strt, dur)});
-                               else setFormData({...formData, startDate: strt});
-                             }} required />
-                           </div>
-                           <div className="input-field-group">
-                             <label>{t.endDate}</label>
-                             <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required />
-                           </div>
-                         </div>
-                         <div className="form-row" style={{ marginTop: '1.5rem' }}>
-                           <div className="input-field-group">
-                             <label>{t.amount}</label>
-                             <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
-                           </div>
-                           <div className="input-field-group" style={{ flex: 2 }}>
-                             <label>{t.workspace}</label>
-                             <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
-                           </div>
-                           <div className="input-field-group" style={{ flex: 0.5, justifyContent: 'flex-end', display: 'flex' }}>
-                             <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
-                           </div>
-                           {editingId && (
-                             <div className="input-field-group" style={{ flex: 0.5, justifyContent: 'flex-end', display: 'flex' }}>
-                               <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ margin: 0, height: '50px' }}>{t.cancel}</button>
+                         
+                         {/* Section 1: Subscription Details */}
+                         <div className="form-section">
+                           <h3 className="section-title">{t.subDetail}</h3>
+                           <div className="form-row">
+                             <div className="input-field-group">
+                               <label>{t.service}</label>
+                               <select value={formData.service} onChange={e => {
+                                   const newSvc = e.target.value;
+                                   setFormData({...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || ''});
+                                 }} required>
+                                 {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+                               </select>
                              </div>
-                           )}
+                             <div className="input-field-group">
+                               <label>{t.category}</label>
+                               <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({...formData, category: e.target.value})} />
+                             </div>
+                             <div className="input-field-group">
+                               <label>{t.duration === 'Duration' ? 'Duration' : 'المدة'}</label> 
+                               <select value={formData.duration || 'monthly'} onChange={e => {
+                                   const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
+                                   if (formData.startDate) {
+                                     const newEnd = calculateEndDate(formData.startDate, dur);
+                                     setFormData({...formData, duration: dur, endDate: newEnd});
+                                   } else setFormData({...formData, duration: dur});
+                                 }} required>
+                                   <option value="monthly">{t.monthly}</option>
+                                   <option value="quarterly">{t.quarterly}</option>
+                                   <option value="yearly">{t.yearly}</option>
+                               </select>
+                             </div>
+                           </div>
+                           <div className="form-row" style={{ marginTop: '1.5rem' }}>
+                             <div className="input-field-group">
+                               <label>{t.startDate}</label>
+                               <input type="date" value={formData.startDate} onChange={e => {
+                                 const strt = e.target.value;
+                                 const dur = formData.duration || 'monthly';
+                                 if (strt) setFormData({...formData, startDate: strt, endDate: calculateEndDate(strt, dur)});
+                                 else setFormData({...formData, startDate: strt});
+                               }} required />
+                             </div>
+                             <div className="input-field-group">
+                               <label>{t.endDate}</label>
+                               <div className="calculated-label">{formatDateDisplay(formData.endDate)}</div>
+                             </div>
+                             <div className="input-field-group">
+                               <label>{t.workspace}</label>
+                               <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
+                             </div>
+                             <div className="input-field-group">
+                               <label>{t.amount}</label>
+                               <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
+                             </div>
+                           </div>
+                         </div>
+
+                         {/* Section 2: Subscriber Details */}
+                         <div className="form-section">
+                           <h3 className="section-title">{t.subscriberDetail}</h3>
+                           <div className="form-row">
+                             <div className="input-field-group">
+                               <label>{t.name}</label>
+                               <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                             </div>
+                             <div className="input-field-group">
+                               <label>{t.email}</label>
+                               <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                             </div>
+                             <div className="input-field-group">
+                                <label>{t.whatsapp}</label>
+                                <div style={{display:'flex', gap:'0.5rem', direction:'ltr'}}>
+                                   <select style={{width:'80px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
+                                     {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+                                   </select>
+                                   <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required />
+                                </div>
+                             </div>
+                             <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
+                               <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
+                               {editingId && (
+                                 <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', category: 'Artificial Intelligence', duration: 'monthly', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
+                               )}
+                             </div>
+                           </div>
                          </div>
                        </form>
                      </div>
