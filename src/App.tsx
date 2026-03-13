@@ -4,7 +4,6 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
-import { HARDCODED_USERS } from './assets/credentials';
 import { supabase } from './supabaseClient';
 import './App.css';
 
