@@ -42,7 +42,7 @@ body {
   margin: 0;
   background-color: var(--bg-black);
   color: var(--text-main);
-  font-family: 'Plus Jakarta Sans', 'Cairo', sans-serif;
+  font-family: 'Cairo', sans-serif;
   min-height: 100vh;
   overflow-x: hidden;
 }
@@ -173,7 +173,7 @@ body {
 }
 
 .platform-name {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: 'Cairo', sans-serif;
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--text-main);

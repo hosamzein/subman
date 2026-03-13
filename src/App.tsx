@@ -452,16 +452,13 @@ function App() {
                 <div className="subscribers-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2>{t.manageSubs}</h2>
-                    <button onClick={handleExport} className="btn-export-main" title={t.export}>
-                      📊 {t.export}
-                    </button>
                   </div>
 
                   {/* Elegant Search and Filter Bar */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '2rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'row', gap: '1rem', marginBottom: '2rem', alignItems: 'center' }}>
                     
                     {/* Search Field */}
-                    <div style={{ width: '100%' }}>
+                    <div style={{ flex: 1 }}>
                       <input 
                         type="text" 
                         placeholder={t.search} 
@@ -473,7 +470,7 @@ function App() {
                     </div>
 
                     {/* Filters Row */}
-                    <div style={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+                    <div>
                       <label 
                         className="renewal-checkbox-large" 
                         style={{ 
@@ -486,7 +483,8 @@ function App() {
                           background: 'var(--bg-card)', 
                           border: '1px solid var(--border-color)', 
                           transition: 'all 0.2s',
-                          userSelect: 'none'
+                          userSelect: 'none',
+                          height: '50px' // Match roughly with the search input
                         }}
                       >
                         <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>📥</span>
@@ -495,10 +493,15 @@ function App() {
                           type="checkbox" 
                           checked={showOnlyRenewals} 
                           onChange={e => setShowOnlyRenewals(e.target.checked)} 
-                          style={{ margin: 0, width: '18px', height: '18px', cursor: 'pointer', marginRight: '0.5rem' }}
+                          style={{ margin: 0, width: '18px', height: '18px', cursor: 'pointer', marginLeft: '0.5rem' }}
                         />
                       </label>
                     </div>
+
+                    {/* Export Button */}
+                    <button onClick={handleExport} className="btn-primary" style={{ height: '50px', padding: '0 1.5rem', width: 'auto' }} title={t.export}>
+                      📊 {t.export}
+                    </button>
 
                   </div>
 
