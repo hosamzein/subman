@@ -24,6 +24,7 @@ function App() {
   const [currentView, setCurrentView] = useState<View>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [loginData, setLoginData] = useState({ user: '', pass: '' });
+  const [currentUser, setCurrentUser] = useState<any>(null);
   
   const subscriptions = useLiveQuery(() => db.subscriptions.toArray());
   const users = useLiveQuery(() => db.users.toArray());
@@ -31,6 +32,7 @@ function App() {
   const waSetting = useLiveQuery(() => db.settings.get('whatsapp_message'));
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingUserId, setEditingUserId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showOnlyRenewals, setShowOnlyRenewals] = useState(false);
 
@@ -77,10 +79,26 @@ function App() {
     genNotif();
   }, [subscriptions, isLoggedIn]);
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginData.user === 'admin' && loginData.pass === 'P@$$w0rd') { setIsLoggedIn(true); setCurrentView('dashboard'); }
-    else alert('خطأ!');
+    
+    // Check Master Admin
+    if (loginData.user === 'admin' && loginData.pass === 'P@$$w0rd') {
+      setIsLoggedIn(true);
+      setCurrentUser({ username: 'admin', role: 'admin' });
+      setCurrentView('dashboard');
+      return;
+    }
+
+    // Check Database Users
+    const user = await db.users.where('username').equals(loginData.user).first();
+    if (user && user.password === loginData.pass) {
+      setIsLoggedIn(true);
+      setCurrentUser(user);
+      setCurrentView('dashboard');
+    } else {
+      alert('خطأ في اسم المستخدم أو كلمة المرور!');
+    }
   };
 
   const sendWhatsApp = (sub: any) => {
@@ -138,197 +156,205 @@ function App() {
     };
   }, [subscriptions, statsFromDate, statsToDate]);
 
-  if (!isLoggedIn) {
-    return (
-      <div className="login-container">
-        <div className="login-card">
-          <h1>منصة إدارة الإشتراكات</h1>
-          <form onSubmit={handleLogin}>
-            <input type="text" placeholder="اسم المستخدم" value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} />
-            <input type="password" placeholder="كلمة المرور" value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
-            <button type="submit" className="btn-primary">دخول</button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="app-layout">
-      <aside className="sidebar">
-        <div className="logo">M</div>
-        <nav>
-          <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title="لوحة البيانات">📊</button>
-          <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title="المشتركون">👥</button>
-          <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title="التنبيهات">
-            🔔 {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
-          </button>
-          <button onClick={() => setCurrentView('users')} className={currentView === 'users' ? 'active' : ''} title="الصلاحيات">🔐</button>
-          <button onClick={() => setCurrentView('settings')} className={currentView === 'settings' ? 'active' : ''} title="الإعدادات">⚙️</button>
-          <button onClick={() => setIsLoggedIn(false)} className="logout" title="خروج">🚪</button>
-        </nav>
-      </aside>
-
-      <main className="content">
-        <header className="main-header"><h1 className="platform-name">منصة إدارة الإشتراكات</h1></header>
-        <div className="view-container">
-          {currentView === 'dashboard' && (
-            <div className="dashboard-view animate-fade">
-              <div className="header-actions">
-                <h2>لوحة التحكم</h2>
-                <div className="dashboard-filters">
-                  <div className="date-input-group">
-                    <label>من:</label>
-                    <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} />
-                  </div>
-                  <div className="date-input-group">
-                    <label>إلى:</label>
-                    <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} />
-                  </div>
-                </div>
-              </div>
-              <div className="stats-grid">
-                <div className="stat-card income"><h3>دخل الفترة</h3><p>{analytics.periodIncome} ج.م</p></div>
-                <div className="stat-card active"><h3>إجمالي النشط</h3><p>{analytics.currentActive}</p></div>
-              </div>
-              <div className="charts-grid">
-                <div className="chart-card"><h3>توزيع الخدمات</h3><div style={{height:'250px'}}><ResponsiveContainer><PieChart><Pie data={analytics.serviceDist} innerRadius={60} outerRadius={80} dataKey="value">{analytics.serviceDist.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div></div>
-                <div className="chart-card"><h3>دخل الخدمات</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={analytics.incomeDist}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
-              </div>
-            </div>
-          )}
-
-          {currentView === 'settings' && (
-            <div className="settings-view animate-fade">
-              <h2>إعدادات النظام</h2>
-              <div className="form-card">
-                <h3>رسالة واتساب الافتراضية</h3>
-                <p style={{fontSize:'0.85rem', color:'#777', marginBottom:'1rem'}}>استخدم الكلمات التالية للاستبدال التلقائي: {'{name}'} للاسم، {'{service}'} للخدمة، {'{date}'} لتاريخ الانتهاء.</p>
-                <textarea 
-                  value={waMessage} 
-                  onChange={e => setWaMessage(e.target.value)} 
-                  className="settings-textarea"
-                  rows={4}
-                />
-                <button onClick={saveSettings} className="btn-primary" style={{marginTop:'1rem'}}>حفظ الإعدادات</button>
-              </div>
-            </div>
-          )}
-
-          {currentView === 'notifications' && (
-            <div className="notifications-view animate-fade">
-              <div className="header-actions"><h2>التنبيهات</h2><button onClick={() => db.notifications.clear()} className="btn-secondary">مسح الكل</button></div>
-              <div className="notifications-list">{notifications?.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString('ar-EG')}</small></div><button onClick={() => db.notifications.delete(n.id!)} className="btn-close">×</button></div>))}</div>
-            </div>
-          )}
-
-          {currentView === 'subscribers' && (
-            <div className="subscribers-view animate-fade">
-              <div className="header-actions">
-                <h2>إدارة المشتركين</h2>
-                <div className="filter-controls">
-                  <input type="text" placeholder="بحث..." className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
-                  <label className="checkbox-filter"><input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} /><span>تجديد</span></label>
-                  <button onClick={() => { if(subscriptions) { const ws = XLSX.utils.json_to_sheet(subscriptions.map(s => ({...s, startDate: formatDateDisplay(s.startDate), endDate: formatDateDisplay(s.endDate)}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, "Report.xlsx"); } }} className="btn-excel">📥</button>
-                </div>
-              </div>
-              {successMessage && <div className="success-banner">{successMessage}</div>}
-              <div className="form-card">
-                 <form onSubmit={async (e) => { 
-                   e.preventDefault(); 
-                   if (editingId) await db.subscriptions.update(editingId, formData); 
-                   else await db.subscriptions.add({...formData, createdAt: new Date().toLocaleString('ar-EG')});
-                   setFormData({service:'Grok', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
-                   setEditingId(null); setSuccessMessage('تم الحفظ!'); setTimeout(()=>setSuccessMessage(''), 3000);
-                 }} className="admin-form">
-                   <div className="form-row">
-                     <select value={formData.service} onChange={e => setFormData({...formData, service: e.target.value})}>{SERVICES.map(s => <option key={s} value={s}>{s}</option>)}</select>
-                     <input type="text" placeholder="الاسم" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
-                   </div>
-                   <div className="form-row">
-                     <input type="email" placeholder="البريد" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
-                     <div style={{display:'flex', gap:'5px'}}>
-                        <select style={{width:'120px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
-                          {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
-                        </select>
-                        <input 
-                          type="text" 
-                          placeholder="رقم الواتساب" 
-                          value={formData.whatsapp} 
-                          onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} 
-                          required 
-                        />
-                     </div>
-                   </div>
-                   <div className="form-row">
-                     <div className="date-input-group">
-                        <label>تاريخ البدء:</label>
-                        <input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} required />
-                     </div>
-                     <div className="date-input-group">
-                        <label>تاريخ الانتهاء:</label>
-                        <input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required />
-                     </div>
-                   </div>
-                   <div className="form-row">
-                     <input type="number" placeholder="المبلغ" value={formData.payment} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
-                     <input type="text" placeholder="مساحة العمل" value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
-                   </div>
-                   <button type="submit" className="btn-primary">{editingId ? 'تحديث' : 'إضافة'}</button>
-                 </form>
-              </div>
-              <div className="table-responsive">
-                <table className="admin-table">
-                  <thead><tr><th>ID</th><th>الخدمة</th><th>المشترك</th><th>الانتهاء (MM/DD/YYYY)</th><th>إجراءات</th></tr></thead>
-                  <tbody>
-                    {filteredSubscriptions.map(s => (
-                      <tr key={s.id}>
-                        <td>#{s.id}</td><td>{s.service}</td>
-                        <td><div>{s.name}</div><small>+{s.countryCode} {s.whatsapp}</small></td>
-                        <td><span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span></td>
-                        <td>
-                          <button onClick={() => sendWhatsApp(s)} className="btn-wa" title="إرسال واتساب">💬</button>
-                          <button onClick={() => { setFormData(s); setEditingId(s.id!); window.scrollTo(0,0); }} className="btn-edit">✏️</button>
-                          <button onClick={() => { if(window.confirm('حذف؟')) db.subscriptions.delete(s.id!); }} className="btn-delete">🗑️</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          {currentView === 'users' && (
-            <div className="users-view animate-fade">
-               <h2>إدارة المستخدمين</h2>
-               <div className="form-card">
-                  <form onSubmit={async (e) => { 
-                    e.preventDefault(); 
-                    try { await db.users.add({...userFormData, createdAt: new Date().toLocaleString('ar-EG')}); setUserFormData({username:'', password:'', role:'editor'}); setSuccessMessage('تم!'); setTimeout(()=>setSuccessMessage(''), 3000); }
-                    catch(err) { alert('موجود!'); }
-                  }} className="admin-form">
-                    <div className="form-row">
-                      <input type="text" placeholder="المستخدم" value={userFormData.username} onChange={e => setUserFormData({...userFormData, username: e.target.value})} required />
-                      <input type="password" placeholder="كلمة المرور" value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} required />
-                    </div>
-                    <div className="form-row">
-                      <select value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="editor">محرر</option><option value="admin">مدير</option></select>
-                      <button type="submit" className="btn-primary">إضافة</button>
-                    </div>
-                  </form>
-               </div>
-               <div className="table-responsive">
-                <table className="admin-table">
-                  <thead><tr><th>المستخدم</th><th>الصلاحية</th><th>إجراءات</th></tr></thead>
-                  <tbody>{users?.map(u => (<tr key={u.id}><td>{u.username}</td><td>{u.role}</td><td><button onClick={() => db.users.delete(u.id!)} className="btn-delete">🗑️</button></td></tr>))}</tbody>
-                </table>
-               </div>
-            </div>
-          )}
+      {!isLoggedIn ? (
+        <div className="login-container">
+          <div className="login-card">
+            <h1>منصة إدارة الإشتراكات</h1>
+            <form onSubmit={handleLogin}>
+              <input type="text" placeholder="اسم المستخدم" value={loginData.user} onChange={e => setLoginData({...loginData, user: e.target.value})} />
+              <input type="password" placeholder="كلمة المرور" value={loginData.pass} onChange={e => setLoginData({...loginData, pass: e.target.value})} required />
+              <button type="submit" className="btn-primary">دخول</button>
+            </form>
+          </div>
         </div>
-        <footer className="app-footer">جميع الحقوق محفوظة &copy; {new Date().getFullYear()} حسام زين</footer>
-      </main>
+      ) : (
+        <>
+          <aside className="sidebar">
+            <div className="logo">M</div>
+            <nav>
+              <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title="لوحة البيانات">📊</button>
+              <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title="المشتركون">👥</button>
+              <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title="التنبيهات">
+                🔔 {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
+              </button>
+              {currentUser?.role === 'admin' && (
+                <>
+                  <button onClick={() => setCurrentView('users')} className={currentView === 'users' ? 'active' : ''} title="الصلاحيات">🔐</button>
+                  <button onClick={() => setCurrentView('settings')} className={currentView === 'settings' ? 'active' : ''} title="الإعدادات">⚙️</button>
+                </>
+              )}
+              <button onClick={() => { setIsLoggedIn(false); setCurrentUser(null); }} className="logout" title="خروج">🚪</button>
+            </nav>
+          </aside>
+
+          <main className="content">
+            <header className="main-header"><h1 className="platform-name">منصة إدارة الإشتراكات</h1></header>
+            <div className="view-container">
+              {currentView === 'dashboard' && (
+                <div className="dashboard-view animate-fade">
+                  <div className="header-actions">
+                    <h2>لوحة التحكم</h2>
+                    <div className="dashboard-filters">
+                      <div className="date-input-group">
+                        <label>من:</label>
+                        <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} />
+                      </div>
+                      <div className="date-input-group">
+                        <label>إلى:</label>
+                        <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="stats-grid">
+                    <div className="stat-card income"><h3>دخل الفترة</h3><p>{analytics.periodIncome} ج.م</p></div>
+                    <div className="stat-card active"><h3>إجمالي النشط</h3><p>{analytics.currentActive}</p></div>
+                  </div>
+                  <div className="charts-grid">
+                    <div className="chart-card"><h3>توزيع الخدمات</h3><div style={{height:'250px'}}><ResponsiveContainer><PieChart><Pie data={analytics.serviceDist} innerRadius={60} outerRadius={80} dataKey="value">{analytics.serviceDist.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer></div></div>
+                    <div className="chart-card"><h3>دخل الخدمات</h3><div style={{height:'250px'}}><ResponsiveContainer><BarChart data={analytics.incomeDist}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer></div></div>
+                  </div>
+                </div>
+              )}
+
+              {currentView === 'settings' && (
+                <div className="settings-view animate-fade">
+                  <h2>إعدادات النظام</h2>
+                  <div className="form-card">
+                    <h3>رسالة واتساب الافتراضية</h3>
+                    <p style={{fontSize:'0.85rem', color:'#777', marginBottom:'1rem'}}>استخدم الكلمات التالية للاستبدال التلقائي: {'{name}'} للاسم، {'{service}'} للخدمة، {'{date}'} لتاريخ الانتهاء.</p>
+                    <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)} className="settings-textarea" rows={4} />
+                    <button onClick={saveSettings} className="btn-primary" style={{marginTop:'1rem'}}>حفظ الإعدادات</button>
+                  </div>
+                </div>
+              )}
+
+              {currentView === 'notifications' && (
+                <div className="notifications-view animate-fade">
+                  <div className="header-actions"><h2>التنبيهات</h2><button onClick={() => db.notifications.clear()} className="btn-secondary">مسح الكل</button></div>
+                  <div className="notifications-list">{notifications?.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString('ar-EG')}</small></div><button onClick={() => db.notifications.delete(n.id!)} className="btn-close">×</button></div>))}</div>
+                </div>
+              )}
+
+              {currentView === 'subscribers' && (
+                <div className="subscribers-view animate-fade">
+                  <div className="header-actions">
+                    <h2>إدارة المشتركين</h2>
+                    <div className="filter-controls">
+                      <input type="text" placeholder="بحث..." className="search-input" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} />
+                      <label className="checkbox-filter"><input type="checkbox" checked={showOnlyRenewals} onChange={e => setShowOnlyRenewals(e.target.checked)} /><span>تجديد</span></label>
+                      <button onClick={() => { if(subscriptions) { const ws = XLSX.utils.json_to_sheet(subscriptions.map(s => ({...s, startDate: formatDateDisplay(s.startDate), endDate: formatDateDisplay(s.endDate)}))); const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, "Data"); XLSX.writeFile(wb, "Report.xlsx"); } }} className="btn-excel">📥</button>
+                    </div>
+                  </div>
+                  {successMessage && <div className="success-banner">{successMessage}</div>}
+                  <div className="form-card">
+                     <form onSubmit={async (e) => { 
+                       e.preventDefault(); 
+                       if (editingId) await db.subscriptions.update(editingId, formData); 
+                       else await db.subscriptions.add({...formData, createdAt: new Date().toLocaleString('ar-EG')});
+                       setFormData({service:'Grok', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''});
+                       setEditingId(null); setSuccessMessage('تم الحفظ!'); setTimeout(()=>setSuccessMessage(''), 3000);
+                     }} className="admin-form">
+                       <div className="form-row">
+                         <select value={formData.service} onChange={e => setFormData({...formData, service: e.target.value})}>{SERVICES.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                         <input type="text" placeholder="الاسم" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                       </div>
+                       <div className="form-row">
+                         <input type="email" placeholder="البريد" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} required />
+                         <div style={{display:'flex', gap:'5px'}}>
+                            <select style={{width:'120px'}} value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} required>
+                              {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>{c.label}</option>)}
+                            </select>
+                            <input type="text" placeholder="رقم الواتساب" value={formData.whatsapp} onChange={e => setFormData({...formData, whatsapp: e.target.value.replace(/\D/g, '')})} required />
+                         </div>
+                       </div>
+                       <div className="form-row">
+                         <div className="date-input-group"><label>تاريخ البدء:</label><input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} required /></div>
+                         <div className="date-input-group"><label>تاريخ الانتهاء:</label><input type="date" value={formData.endDate} onChange={e => setFormData({...formData, endDate: e.target.value})} required /></div>
+                       </div>
+                       <div className="form-row">
+                         <input type="number" placeholder="المبلغ" value={formData.payment} onChange={e => setFormData({...formData, payment: Number(e.target.value)})} required />
+                         <input type="text" placeholder="مساحة العمل" value={formData.workspace} onChange={e => setFormData({...formData, workspace: e.target.value})} />
+                       </div>
+                       <button type="submit" className="btn-primary">{editingId ? 'تحديث' : 'إضافة'}</button>
+                       {editingId && <button type="button" onClick={() => { setEditingId(null); setFormData({service:'Grok', name:'', email:'', facebook:'', countryCode: '20', whatsapp:'', startDate:'', endDate:'', payment:0, workspace:''}); }} className="btn-secondary">إلغاء</button>}
+                     </form>
+                  </div>
+                  <div className="table-responsive">
+                    <table className="admin-table">
+                      <thead><tr><th>ID</th><th>الخدمة</th><th>المشترك</th><th>الانتهاء</th><th>إجراءات</th></tr></thead>
+                      <tbody>
+                        {filteredSubscriptions.map(s => (
+                          <tr key={s.id}>
+                            <td>#{s.id}</td><td>{s.service}</td>
+                            <td><div>{s.name}</div><small>+{s.countryCode} {s.whatsapp}</small></td>
+                            <td><span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span></td>
+                            <td>
+                              <button onClick={() => sendWhatsApp(s)} className="btn-wa" title="إرسال واتساب">💬</button>
+                              <button onClick={() => { setFormData(s); setEditingId(s.id!); window.scrollTo(0,0); }} className="btn-edit" title="تعديل">✏️</button>
+                              <button onClick={() => { if(window.confirm('حذف؟')) db.subscriptions.delete(s.id!); }} className="btn-delete" title="حذف">🗑️</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {currentView === 'users' && (
+                <div className="users-view animate-fade">
+                   <h2>إدارة المستخدمين والصلاحيات</h2>
+                   <div className="form-card">
+                      <form onSubmit={async (e) => { 
+                        e.preventDefault(); 
+                        try {
+                          if (editingUserId) {
+                            await db.users.update(editingUserId, userFormData);
+                            setSuccessMessage('تم تحديث المستخدم!');
+                          } else {
+                            await db.users.add({...userFormData, createdAt: new Date().toLocaleString('ar-EG')});
+                            setSuccessMessage('تمت الإضافة!');
+                          }
+                          setUserFormData({username:'', password:'', role:'editor'});
+                          setEditingUserId(null);
+                          setTimeout(()=>setSuccessMessage(''), 3000);
+                        } catch(err) { alert('خطأ!'); }
+                      }} className="admin-form">
+                        <div className="form-row">
+                          <input type="text" placeholder="المستخدم" value={userFormData.username} onChange={e => setUserFormData({...userFormData, username: e.target.value})} required />
+                          <input type="password" placeholder="كلمة المرور" value={userFormData.password} onChange={e => setUserFormData({...userFormData, password: e.target.value})} required />
+                        </div>
+                        <div className="form-row">
+                          <select value={userFormData.role} onChange={e => setUserFormData({...userFormData, role: e.target.value as any})}><option value="editor">محرر</option><option value="admin">مدير</option></select>
+                          <button type="submit" className="btn-primary">{editingUserId ? 'تحديث' : 'إضافة'}</button>
+                          {editingUserId && <button type="button" onClick={() => { setEditingUserId(null); setUserFormData({username:'', password:'', role:'editor'}); }} className="btn-secondary">إلغاء</button>}
+                        </div>
+                      </form>
+                   </div>
+                   {successMessage && <div className="success-banner">{successMessage}</div>}
+                   <div className="table-responsive">
+                    <table className="admin-table">
+                      <thead><tr><th>المستخدم</th><th>الصلاحية</th><th>إجراءات</th></tr></thead>
+                      <tbody>{users?.map(u => (
+                        <tr key={u.id}>
+                          <td>{u.username}</td><td>{u.role === 'admin' ? 'مدير' : 'محرر'}</td>
+                          <td>
+                            <button onClick={() => { setUserFormData({username: u.username, password: u.password, role: u.role}); setEditingUserId(u.id!); window.scrollTo(0,0); }} className="btn-edit" title="تعديل">✏️</button>
+                            <button onClick={() => { if(window.confirm('حذف؟')) db.users.delete(u.id!); }} className="btn-delete" title="حذف">🗑️</button>
+                          </td>
+                        </tr>
+                      ))}</tbody>
+                    </table>
+                   </div>
+                </div>
+              )}
+            </div>
+            <footer className="app-footer">جميع الحقوق محفوظة &copy; {new Date().getFullYear()} حسام زين</footer>
+          </main>
+        </>
+      )}
     </div>
   );
 }
