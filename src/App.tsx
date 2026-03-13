@@ -6,6 +6,8 @@ import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
+import { UniversalDatePicker } from '@/components/ui/universal-date-picker';
+import { parseISO, format as formatDF } from 'date-fns';
 import './App.css';
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity', 'Gemini'];
@@ -388,42 +390,47 @@ function App() {
             <div className="view-container">
               {currentView === 'dashboard' && (
                 <div className="dashboard-view animate-fade">
-                  <div className="header-actions">
+                  <div className="header-actions" style={{ marginBottom: '2rem' }}>
                     <h2>{t.dashboard}</h2>
-                    <div className="dashboard-filters">
-                      <div className="date-input-group">
-                        <label>{lang === 'ar' ? 'من' : 'From'}:</label>
-                        <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} />
-                      </div>
-                      <div className="date-input-group">
-                        <label>{lang === 'ar' ? 'إلى' : 'To'}:</label>
-                        <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} />
-                      </div>
+                    <div className="dashboard-filters" style={{ width: '320px' }}>
+                      <UniversalDatePicker 
+                        selected={{ from: parseISO(statsFromDate), to: parseISO(statsToDate) }}
+                        onSelect={(range) => {
+                          if (range?.from) setStatsFromDate(formatDF(range.from, 'yyyy-MM-dd'));
+                          if (range?.to) setStatsToDate(formatDF(range.to, 'yyyy-MM-dd'));
+                        }}
+                      />
                     </div>
                   </div>
-                  <div className="stats-grid">
-                    <div className="stat-card income">
-                      <h3>{t.periodIncome}</h3>
-                      <p>{analytics.periodIncome} {lang === 'ar' ? 'ج.م' : 'EGP'}</p>
-                      <small>{analytics.totalInPeriod} {t.newSubs}</small>
-                    </div>
-                    <div className="stat-card active">
-                      <h3>{t.totalActive}</h3>
-                      <p>{analytics.currentActive}</p>
-                      <small>{t.activeNow}</small>
-                    </div>
-                  </div>
-                  <div className="charts-grid">
-                    <div className="chart-card">
-                      <h3>{t.serviceDist}</h3>
-                      <div style={{height:'250px'}}>
-                        <ResponsiveContainer><PieChart><Pie data={analytics.serviceDist} innerRadius={60} outerRadius={80} dataKey="value">{analytics.serviceDist.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginBottom: '2rem' }}>
+                    {/* Stats Column */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                      <div className="stat-card income" style={{ margin: 0 }}>
+                        <h3>{t.periodIncome}</h3>
+                        <p>{analytics.periodIncome} {lang === 'ar' ? 'ج.م' : 'EGP'}</p>
+                        <small>{analytics.totalInPeriod} {t.newSubs}</small>
+                      </div>
+                      <div className="stat-card active" style={{ margin: 0 }}>
+                        <h3>{t.totalActive}</h3>
+                        <p>{analytics.currentActive}</p>
+                        <small>{t.activeNow}</small>
                       </div>
                     </div>
-                    <div className="chart-card">
-                      <h3>{t.incomeDist}</h3>
-                      <div style={{height:'250px'}}>
-                        <ResponsiveContainer><BarChart data={analytics.incomeDist}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
+
+                    {/* Charts Column */}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                      <div className="chart-card" style={{ margin: 0 }}>
+                        <h3>{t.serviceDist}</h3>
+                        <div style={{height:'300px'}}>
+                          <ResponsiveContainer><PieChart><Pie data={analytics.serviceDist} innerRadius={60} outerRadius={80} dataKey="value">{analytics.serviceDist.map((_, i) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}</Pie><Tooltip /><Legend /></PieChart></ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className="chart-card" style={{ margin: 0 }}>
+                        <h3>{t.incomeDist}</h3>
+                        <div style={{height:'300px'}}>
+                          <ResponsiveContainer><BarChart data={analytics.incomeDist}><CartesianGrid strokeDasharray="3 3" vertical={false} /><XAxis dataKey="name" /><YAxis /><Tooltip /><Bar dataKey="amount" fill="#3498db" radius={[4, 4, 0, 0]} /></BarChart></ResponsiveContainer>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -611,57 +618,68 @@ function App() {
                            </div>
                          </div>
                        </form>
-                     </div>
+                    </div>
                   
-                  {/* Table Section */}
-                  <div className="table-responsive">
-                    <table className="admin-table">
-                      <thead>
-                        <tr>
-                          <th>ID</th>
-                          <th>{t.service}</th>
-                          <th>{t.name}</th>
-                          <th>{t.endDate}</th>
-                          <th style={{ textAlign: 'center' }}>{t.actions}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {filteredSubscriptions.map(s => (
-                          <tr key={s.id}>
-                            <td style={{ fontWeight: 600, color: '#a0a0a0' }}>#{s.id}</td>
-                            <td>
-                              <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
-                              <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>{s.category || SERVICE_CATEGORIES[s.service]}</div>
-                            </td>
-                            <td>
-                              <div style={{ fontWeight: 600 }}>{s.name}</div>
-                              <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>+{s.countryCode} {s.whatsapp}</div>
-                            </td>
-                            <td>
-                              <span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span>
-                              <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#a0a0a0' }}>
-                                {s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}
-                              </div>
-                            </td>
-                            <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                              <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
-                              <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
-                              <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
-                              <button onClick={() => { if (window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
-                            </td>
+                    {/* Table Section */}
+                    <div className="table-responsive">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>ID</th>
+                            <th>{t.service}</th>
+                            <th>{t.name}</th>
+                            <th>{t.endDate}</th>
+                            <th style={{ textAlign: 'center' }}>{t.actions}</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {filteredSubscriptions.map(s => (
+                            <tr key={s.id}>
+                              <td style={{ fontWeight: 600, color: '#a0a0a0' }}>#{s.id}</td>
+                              <td>
+                                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
+                                <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>{s.category || SERVICE_CATEGORIES[s.service]}</div>
+                              </td>
+                              <td>
+                                <div style={{ fontWeight: 600 }}>{s.name}</div>
+                                <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>+{s.countryCode} {s.whatsapp}</div>
+                              </td>
+                              <td>
+                                <span className={`badge ${getStatus(s.endDate).class}`}>{formatDateDisplay(s.endDate)}</span>
+                                <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#a0a0a0' }}>
+                                  {s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}
+                                </div>
+                              </td>
+                              <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
+                                <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
+                                <button onClick={() => { setFormData({...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly'}); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
+                                <button onClick={() => { if (window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   </div>
                 </div>
               )}
 
               {currentView === 'users' && (
                 <div className="users-view animate-fade">
-                   <h2>{t.manageUsers}</h2>
-                   <div className="form-card">
+                  <div className="header-actions" style={{ marginBottom: '2rem' }}>
+                    <h2>{t.manageUsers}</h2>
+                    <div className="dashboard-filters" style={{ width: '320px' }}>
+                      <UniversalDatePicker 
+                        selected={{ from: parseISO(statsFromDate), to: parseISO(statsToDate) }}
+                        onSelect={(range) => {
+                          if (range?.from) setStatsFromDate(formatDF(range.from, 'yyyy-MM-dd'));
+                          if (range?.to) setStatsToDate(formatDF(range.to, 'yyyy-MM-dd'));
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div className="form-card">
                       <form onSubmit={async (e) => { 
                         e.preventDefault(); 
                         try {

@@ -1,5 +1,9 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Orbitron:wght@400;700&family=Cairo:wght@400;600;700&display=swap');
 
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
   --bg-black: #000000;
   --bg-card: rgba(255, 255, 255, 0.03);
@@ -254,6 +258,13 @@ body {
   font-size: 1.25rem;
   font-weight: 700;
   color: #000000;
+}
+
+.header-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1.5rem;
 }
 
 .view-container {
