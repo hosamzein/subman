@@ -208,6 +208,21 @@ function App() {
     else setWaMessage("مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.");
   }, [waSetting]);
 
+  // Migration to fix existing users
+  useEffect(() => {
+    const migrate = async () => {
+      const allUsers = await db.users.toArray();
+      for (const u of allUsers) {
+        if (u.username !== u.username.toLowerCase()) {
+          try {
+            await db.users.update(u.id!, { username: u.username.toLowerCase() });
+          } catch (e) { /* duplicate ignore */ }
+        }
+      }
+    };
+    migrate();
+  }, []);
+
   useEffect(() => {
     if (!subscriptions || !isLoggedIn) return;
     const genNotif = async () => {
@@ -230,14 +245,29 @@ function App() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (loginData.user === 'admin' && loginData.pass === 'P@$$w0rd') {
+    const inputUser = loginData.user.trim().toLowerCase();
+    const inputPass = loginData.pass; // Passwords should be exact, no trim
+
+    if (inputUser === 'admin' && inputPass === 'P@$$w0rd') {
       setIsLoggedIn(true); setCurrentUser({ username: 'admin', role: 'admin' }); setCurrentView('dashboard');
       return;
     }
-    const user = await db.users.where('username').equals(loginData.user).first();
-    if (user && user.password === loginData.pass) {
-      setIsLoggedIn(true); setCurrentUser(user); setCurrentView('dashboard');
-    } else alert('Error!');
+    
+    try {
+      const user = await db.users.where('username').equals(inputUser).first();
+      if (!user) {
+        alert(lang === 'ar' ? 'اسم المستخدم غير موجود!' : 'User not found!');
+        return;
+      }
+      
+      if (user.password === inputPass) {
+        setIsLoggedIn(true); setCurrentUser(user); setCurrentView('dashboard');
+      } else {
+        alert(lang === 'ar' ? 'كلمة المرور غير صحيحة!' : 'Incorrect password!');
+      }
+    } catch (err) {
+      alert('Database Error!');
+    }
   };
 
   const formatDateDisplay = (dateStr: string) => {
@@ -683,9 +713,14 @@ function App() {
                   <div className="form-card">
                     <form onSubmit={async (e) => {
                       e.preventDefault();
+                      const cleanedData = {
+                        ...userFormData,
+                        username: userFormData.username.trim().toLowerCase(),
+                        password: userFormData.password // Don't trim password
+                      };
                       try {
-                        if (editingUserId) { await db.users.update(editingUserId, userFormData); setSuccessMessage(t.updated); }
-                        else { await db.users.add({ ...userFormData, createdAt: new Date().toLocaleString() }); setSuccessMessage(t.saved); }
+                        if (editingUserId) { await db.users.update(editingUserId, cleanedData); setSuccessMessage(t.updated); }
+                        else { await db.users.add({ ...cleanedData, createdAt: new Date().toLocaleString() }); setSuccessMessage(t.saved); }
                         setUserFormData({ username: '', password: '', role: 'editor' }); setEditingUserId(null); setTimeout(() => setSuccessMessage(''), 3000);
                       } catch (err) { alert(t.userExists); }
                     }} className="admin-form">
