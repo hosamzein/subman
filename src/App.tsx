@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useEffect } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from './db';
 import * as XLSX from 'xlsx';
 import {
   PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
 } from 'recharts';
 import { HARDCODED_USERS } from './assets/credentials';
+import { supabase } from './supabaseClient';
 import './App.css';
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity', 'Gemini'];
@@ -88,7 +87,16 @@ const translations = {
     category: "الفئة",
     renew: "تجديد",
     subDetail: "تفاصيل الاشتراك",
-    subscriberDetail: "بيانات المشترك"
+    subscriberDetail: "بيانات المشترك",
+    pendingTitle: "الحساب قيد المراجعة",
+    pendingMsg: "حسابك قيد المراجعة حالياً من قبل الإدارة. يرجى المحاولة لاحقاً.",
+    register: "تسجيل حساب جديد",
+    alreadyHave: "لديك حساب بالفعل؟ دخول",
+    needAccount: "ليس لديك حساب؟ سجل الآن",
+    googleLogin: "الدخول بواسطة جوجل",
+    status: "الحالة",
+    approve: "تفعيل",
+    reject: "رفض"
   },
   en: {
     title: "Subscription Management",
@@ -151,7 +159,16 @@ const translations = {
     category: "Category",
     renew: "Renew",
     subDetail: "Subscription Details",
-    subscriberDetail: "Subscriber Details"
+    subscriberDetail: "Subscriber Details",
+    pendingTitle: "Account Pending",
+    pendingMsg: "Your account is currently pending approval by an administrator. Please check back later.",
+    register: "Register New Account",
+    alreadyHave: "Already have an account? Login",
+    needAccount: "Don't have an account? Register",
+    googleLogin: "Login with Google",
+    status: "Status",
+    approve: "Approve",
+    reject: "Reject"
   }
 };
 
@@ -161,14 +178,17 @@ function App() {
   const [lang, setLang] = useState<'ar' | 'en'>(localStorage.getItem('subman_lang') as 'ar' | 'en' || 'ar');
   const [theme, setTheme] = useState<'dark' | 'light'>(localStorage.getItem('subman_theme') as 'dark' | 'light' || 'dark');
   const [currentView, setCurrentView] = useState<View>('login');
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [loginData, setLoginData] = useState({ user: '', pass: '' });
+  const [loginData, setLoginData] = useState({ email: '', pass: '' });
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const [userProfile, setUserProfile] = useState<any>(null);
 
-  const subscriptions = useLiveQuery(() => db.subscriptions.toArray());
-  const users = useLiveQuery(() => db.users.toArray());
-  const notifications = useLiveQuery(() => db.notifications.orderBy('createdAt').reverse().toArray());
-  const waSetting = useLiveQuery(() => db.settings.get('whatsapp_message'));
+  const [subscriptions, setSubscriptions] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<any[]>([]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [waMessage, setWaMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editingUserId, setEditingUserId] = useState<number | null>(null);
@@ -188,8 +208,6 @@ function App() {
     startDate: '', endDate: '', payment: 0, workspace: ''
   });
   const [userFormData, setUserFormData] = useState({ username: '', password: '', role: 'editor' as 'admin' | 'editor' });
-  const [waMessage, setWaMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
 
   const t = translations[lang];
 
@@ -205,73 +223,116 @@ function App() {
   }, [theme]);
 
   useEffect(() => {
-    if (waSetting) setWaMessage(waSetting.value);
-    else setWaMessage("مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.");
-  }, [waSetting]);
-
-  // Migration to fix existing users
-  useEffect(() => {
-    const migrate = async () => {
-      const allUsers = await db.users.toArray();
-      for (const u of allUsers) {
-        if (u.username !== u.username.toLowerCase()) {
-          try {
-            await db.users.update(u.id!, { username: u.username.toLowerCase() });
-          } catch (e) { /* duplicate ignore */ }
-        }
+    const fetchSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setIsLoggedIn(true);
+        setCurrentUser(session.user);
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        setUserProfile(profile);
       }
     };
-    migrate();
+    fetchSession();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (session) {
+        setIsLoggedIn(true);
+        setCurrentUser(session.user);
+        const { data: profile } = await supabase.from('profiles').select('*').eq('id', session.user.id).single();
+        setUserProfile(profile);
+      } else {
+        setIsLoggedIn(false);
+        setCurrentUser(null);
+        setUserProfile(null);
+        setCurrentView('login');
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (!subscriptions || !isLoggedIn) return;
-    const genNotif = async () => {
-      const today = new Date();
-      await db.notifications.where('createdAt').below(today.getTime() - (7 * 24 * 60 * 60 * 1000)).delete();
-      for (const sub of subscriptions) {
-        const end = new Date(sub.endDate);
-        const diff = Math.ceil((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-        let m = ""; let type: 'info' | 'warning' | 'danger' = 'info';
-        if (diff < 0) { m = `انتهى اشتراك ${sub.name} (${sub.service})`; type = 'danger'; }
-        else if (diff <= 2) { m = `تجديد ${sub.name} (${sub.service}) خلال ${diff} أيام`; type = 'warning'; }
-        if (m) {
-          const ex = await db.notifications.where('message').equals(m).and(n => new Date(n.createdAt).toDateString() === today.toDateString()).count();
-          if (ex === 0) await db.notifications.add({ message: m, type, createdAt: today.getTime() });
-        }
+    if (!isLoggedIn || !currentUser) return;
+    
+    if (userProfile && userProfile.status === 'pending' && userProfile.role !== 'admin') {
+      return;
+    }
+
+    const fetchData = async () => {
+      let subQuery = supabase.from('subscriptions').select('*');
+      if (userProfile?.role !== 'admin') {
+        subQuery = subQuery.eq('user_id', currentUser.id);
       }
+      const { data: subs } = await subQuery.order('createdAt', { ascending: false });
+      setSubscriptions(subs || []);
+
+      if (userProfile?.role === 'admin') {
+        const { data: profiles } = await supabase.from('profiles').select('*');
+        setAllUsers(profiles || []);
+      }
+
+      const { data: settings } = await supabase.from('settings').select('*').eq('id', 'whatsapp_message').single();
+      if (settings) setWaMessage(settings.value);
+      else setWaMessage("مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.");
+
+      const today = new Date();
+      const { data: notifs } = await supabase.from('notifications').select('*').eq('user_id', currentUser.id).order('createdAt', { ascending: false });
+      setNotifications(notifs || []);
     };
-    genNotif();
-  }, [subscriptions, isLoggedIn]);
+
+    fetchData();
+
+    const subChannel = supabase.channel('schema-db-changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => fetchData())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => fetchData())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subChannel);
+    };
+  }, [isLoggedIn, currentUser, userProfile]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    const inputUser = loginData.user.trim().toLowerCase();
-    const inputPass = loginData.pass; // Passwords should be exact, no trim
+    const { error } = await supabase.auth.signInWithPassword({
+      email: loginData.email,
+      password: loginData.pass,
+    });
+    if (error) alert(error.message);
+  };
 
-    const hardcodedUser = HARDCODED_USERS.find(u => u.username === inputUser && u.password === inputPass);
-    if (hardcodedUser) {
-      setIsLoggedIn(true); 
-      setCurrentUser(hardcodedUser); 
-      setCurrentView('dashboard');
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data, error } = await supabase.auth.signUp({
+      email: loginData.email,
+      password: loginData.pass,
+    });
+    if (error) {
+      alert(error.message);
       return;
     }
-    
-    try {
-      const user = await db.users.where('username').equals(inputUser).first();
-      if (!user) {
-        alert(lang === 'ar' ? 'اسم المستخدم غير موجود!' : 'User not found!');
-        return;
-      }
-      
-      if (user.password === inputPass) {
-        setIsLoggedIn(true); setCurrentUser(user); setCurrentView('dashboard');
-      } else {
-        alert(lang === 'ar' ? 'كلمة المرور غير صحيحة!' : 'Incorrect password!');
-      }
-    } catch (err) {
-      alert('Database Error!');
+    if (data.user) {
+      await supabase.from('profiles').insert([{ 
+        id: data.user.id, 
+        username: loginData.email.split('@')[0],
+        role: 'editor',
+        status: 'pending'
+      }]);
+      alert(t.pendingMsg);
     }
+  };
+
+  const handleGoogleLogin = async () => {
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+    });
+    if (error) alert(error.message);
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const formatDateDisplay = (dateStr: string) => {
@@ -374,18 +435,39 @@ function App() {
   };
 
   return (
-    <div className={`app-layout ${theme}-theme ${!isLoggedIn ? 'is-login-page' : ''}`}>
+    <div className={`app-layout ${theme}-theme ${!isLoggedIn || (userProfile?.status === 'pending' && userProfile?.role !== 'admin') ? 'is-login-page' : ''}`}>
       {!isLoggedIn ? (
         <div className="login-container">
           <div className="login-card">
             <h1>{t.title}</h1>
-            <form onSubmit={handleLogin} className="login-form">
-              <div className="login-inputs-row">
-                <input type="text" placeholder={t.username} value={loginData.user} onChange={e => setLoginData({ ...loginData, user: e.target.value })} required />
-                <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
-              </div>
-              <button type="submit" className="login-submit-btn">{t.enter}</button>
-            </form>
+            {authMode === 'login' ? (
+              <form onSubmit={handleLogin} className="login-form">
+                <div className="login-inputs-row">
+                  <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
+                  <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
+                </div>
+                <button type="submit" className="login-submit-btn">{t.enter}</button>
+                <button type="button" onClick={handleGoogleLogin} className="btn-secondary" style={{ marginTop: '10px', width: '100%' }}>{t.googleLogin}</button>
+                <p className="auth-switch" onClick={() => setAuthMode('register')}>{t.needAccount}</p>
+              </form>
+            ) : (
+              <form onSubmit={handleSignUp} className="login-form">
+                <div className="login-inputs-row">
+                  <input type="email" placeholder={t.email} value={loginData.email} onChange={e => setLoginData({ ...loginData, email: e.target.value })} required />
+                  <input type="password" placeholder={t.password} value={loginData.pass} onChange={e => setLoginData({ ...loginData, pass: e.target.value })} required />
+                </div>
+                <button type="submit" className="login-submit-btn">{t.register}</button>
+                <p className="auth-switch" onClick={() => setAuthMode('login')}>{t.alreadyHave}</p>
+              </form>
+            )}
+          </div>
+        </div>
+      ) : userProfile?.status === 'pending' && userProfile?.role !== 'admin' ? (
+        <div className="login-container">
+          <div className="login-card" style={{ textAlign: 'center' }}>
+            <h2>{t.pendingTitle}</h2>
+            <p style={{ margin: '20px 0', lineHeight: 1.6 }}>{t.pendingMsg}</p>
+            <button onClick={handleLogout} className="btn-secondary">{t.logout}</button>
           </div>
         </div>
       ) : (
@@ -397,14 +479,14 @@ function App() {
               <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title={t.notifications}>
                 🔔 {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
               </button>
-              {currentUser?.role === 'admin' && (
+              {userProfile?.role === 'admin' && (
                 <>
                   <button onClick={() => setCurrentView('users')} className={currentView === 'users' ? 'active' : ''} title={t.access}>🔐</button>
                   <button onClick={() => setCurrentView('settings')} className={currentView === 'settings' ? 'active' : ''} title={t.settings}>⚙️</button>
                 </>
               )}
             </nav>
-            <button onClick={() => { setIsLoggedIn(false); setCurrentUser(null); }} className="logout" title={t.logout}>🚪</button>
+            <button onClick={handleLogout} className="logout" title={t.logout}>🚪</button>
           </aside>
 
           <main className="content">
@@ -438,7 +520,6 @@ function App() {
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr', gap: '2rem', marginBottom: '2rem' }}>
-                    {/* Stats Column */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
                       <div className="stat-card income" style={{ margin: 0 }}>
                         <h3>{t.periodIncome}</h3>
@@ -452,7 +533,6 @@ function App() {
                       </div>
                     </div>
 
-                    {/* Charts Column */}
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                       <div className="chart-card" style={{ margin: 0 }}>
                         <h3>{t.serviceDist}</h3>
@@ -478,7 +558,7 @@ function App() {
                     <h3>{t.waTemplate}</h3>
                     <p className="help-text">{t.waHelp}</p>
                     <textarea value={waMessage} onChange={e => setWaMessage(e.target.value)} className="settings-textarea" rows={4} />
-                    <button onClick={async () => { await db.settings.put({ id: 'whatsapp_message', value: waMessage }); setSuccessMessage(t.saved); setTimeout(() => setSuccessMessage(''), 3000); }} className="btn-primary" style={{ marginTop: '1rem' }}>{t.save}</button>
+                    <button onClick={async () => { await supabase.from('settings').upsert({ id: 'whatsapp_message', value: waMessage }); setSuccessMessage(t.saved); setTimeout(() => setSuccessMessage(''), 3000); }} className="btn-primary" style={{ marginTop: '1rem' }}>{t.save}</button>
                   </div>
                   {successMessage && <div className="success-banner">{successMessage}</div>}
                 </div>
@@ -486,10 +566,10 @@ function App() {
 
               {currentView === 'notifications' && (
                 <div className="notifications-view animate-fade">
-                  <div className="header-actions"><h2>{t.notifCenter}</h2><button onClick={() => db.notifications.clear()} className="btn-secondary">{t.clearAll}</button></div>
+                  <div className="header-actions"><h2>{t.notifCenter}</h2><button onClick={() => supabase.from('notifications').delete().eq('user_id', currentUser.id)} className="btn-secondary">{t.clearAll}</button></div>
                   <div className="notifications-list">
                     {!notifications || notifications.length === 0 ? <p className="empty-msg">{t.noNotifs}</p> :
-                      notifications.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</small></div><button onClick={() => db.notifications.delete(n.id!)} className="btn-close">×</button></div>))
+                      notifications.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</small></div><button onClick={() => supabase.from('notifications').delete().eq('id', n.id)} className="btn-close">×</button></div>))
                     }
                   </div>
                 </div>
@@ -501,10 +581,7 @@ function App() {
                     <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{t.manageSubs}</h2>
                   </div>
 
-                  {/* Elegant Search and Filter Bar */}
                   <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
-
-                    {/* Search Field */}
                     <div style={{ flex: 1 }}>
                       <input
                         type="text"
@@ -516,7 +593,6 @@ function App() {
                       />
                     </div>
 
-                    {/* Filters Row */}
                     <div>
                       <label
                         className="renewal-checkbox-large"
@@ -545,27 +621,29 @@ function App() {
                       </label>
                     </div>
 
-                    {/* Export Button */}
                     <button onClick={handleExport} className="btn-primary" style={{ padding: '0.6rem 1.5rem', width: 'auto', borderRadius: '8px', margin: 0 }} title={t.export}>
                       📊 {t.export}
                     </button>
-
                   </div>
 
                   {successMessage && <div style={{ background: '#000', color: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center', fontWeight: 'bold' }}>{successMessage}</div>}
 
                   <div className="main-content-card">
-                    {/* Form Section */}
                     <div style={{ padding: '2.5rem', borderBottom: '1px solid #f0f0f0' }}>
                       <form onSubmit={async (e) => {
                         e.preventDefault();
-                        if (editingId) { await db.subscriptions.update(editingId, formData); setSuccessMessage(t.updated); }
-                        else { await db.subscriptions.add({ ...formData, createdAt: new Date().toLocaleString() }); setSuccessMessage(t.saved); }
+                        if (editingId) { 
+                          await supabase.from('subscriptions').update(formData).eq('id', editingId);
+                          setSuccessMessage(t.updated); 
+                        }
+                        else { 
+                          await supabase.from('subscriptions').insert([{ ...formData, user_id: currentUser.id, createdAt: new Date().toISOString() }]);
+                          setSuccessMessage(t.saved); 
+                        }
                         setFormData({ service: 'Grok', category: 'Artificial Intelligence', duration: 'monthly', name: '', email: '', facebook: '', countryCode: '20', whatsapp: '', startDate: '', endDate: '', payment: 0, workspace: '' });
                         setEditingId(null); setTimeout(() => setSuccessMessage(''), 3000);
                       }} className="admin-form">
 
-                        {/* Section 1: Subscription Details */}
                         <div className="form-section">
                           <h3 className="section-title">{t.subDetail}</h3>
                           <div className="form-row">
@@ -583,7 +661,7 @@ function App() {
                               <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })} />
                             </div>
                             <div className="input-field-group">
-                              <label>{t.duration === 'Duration' ? 'Duration' : 'المدة'}</label>
+                              <label>{t.duration}</label>
                               <select value={formData.duration || 'monthly'} onChange={e => {
                                 const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
                                 if (formData.startDate) {
@@ -622,7 +700,6 @@ function App() {
                           </div>
                         </div>
 
-                        {/* Section 2: Subscriber Details */}
                         <div className="form-section">
                           <h3 className="section-title">{t.subscriberDetail}</h3>
                           <div className="form-row">
@@ -654,7 +731,6 @@ function App() {
                       </form>
                     </div>
 
-                    {/* Table Section */}
                     <div className="table-responsive">
                       <table className="admin-table">
                         <thead>
@@ -688,7 +764,7 @@ function App() {
                                 <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
                                 <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
                                 <button onClick={() => { setFormData({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
-                                <button onClick={() => { if (window.confirm(t.confirmDelete)) db.subscriptions.delete(s.id!); }} title={t.logout}>🗑️</button>
+                                <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
                               </td>
                             </tr>
                           ))}
@@ -703,52 +779,32 @@ function App() {
                 <div className="users-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '2rem' }}>
                     <h2>{t.manageUsers}</h2>
-                    <div className="dashboard-filters" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'من' : 'From'}</label>
-                        <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
-                      </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'إلى' : 'To'}</label>
-                        <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
-                      </div>
-                    </div>
                   </div>
-                  <div className="form-card">
-                    <form onSubmit={async (e) => {
-                      e.preventDefault();
-                      const cleanedData = {
-                        ...userFormData,
-                        username: userFormData.username.trim().toLowerCase(),
-                        password: userFormData.password // Don't trim password
-                      };
-                      try {
-                        if (editingUserId) { await db.users.update(editingUserId, cleanedData); setSuccessMessage(t.updated); }
-                        else { await db.users.add({ ...cleanedData, createdAt: new Date().toLocaleString() }); setSuccessMessage(t.saved); }
-                        setUserFormData({ username: '', password: '', role: 'editor' }); setEditingUserId(null); setTimeout(() => setSuccessMessage(''), 3000);
-                      } catch (err) { alert(t.userExists); }
-                    }} className="admin-form">
-                      <div className="form-row">
-                        <input type="text" placeholder={t.username} value={userFormData.username} onChange={e => setUserFormData({ ...userFormData, username: e.target.value })} required />
-                        <input type="password" placeholder={t.password} value={userFormData.password} onChange={e => setUserFormData({ ...userFormData, password: e.target.value })} required />
-                      </div>
-                      <div className="form-row">
-                        <select value={userFormData.role} onChange={e => setUserFormData({ ...userFormData, role: e.target.value as any })}><option value="editor">{t.editor}</option><option value="admin">{t.admin}</option></select>
-                        <button type="submit" className="btn-primary">{editingUserId ? t.update : t.add}</button>
-                        {editingUserId && <button type="button" onClick={() => { setEditingUserId(null); setUserFormData({ username: '', password: '', role: 'editor' }); }} className="btn-secondary">{t.cancel}</button>}
-                      </div>
-                    </form>
-                  </div>
-                  {successMessage && <div className="success-banner">{successMessage}</div>}
                   <div className="table-responsive">
                     <table className="admin-table">
-                      <thead><tr><th>{t.user}</th><th>{t.role}</th><th>{t.actions}</th></tr></thead>
-                      <tbody>{users?.map(u => (
+                      <thead><tr><th>{t.user}</th><th>{t.status}</th><th>{t.role}</th><th>{t.actions}</th></tr></thead>
+                      <tbody>{allUsers?.map(u => (
                         <tr key={u.id}>
-                          <td>{u.username}</td><td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.editor}</span></td>
+                          <td>{u.username}</td>
                           <td>
-                            <button onClick={() => { setUserFormData({ username: u.username, password: u.password, role: u.role as 'admin' | 'editor' }); setEditingUserId(u.id!); window.scrollTo(0, 0); }} className="btn-edit" title={t.update}>✏️</button>
-                            <button onClick={() => { if (window.confirm(t.confirmDelete)) db.users.delete(u.id!); }} className="btn-delete" title={t.logout}>🗑️</button>
+                            <span className={`badge ${u.status === 'approved' ? 'badge-success' : u.status === 'pending' ? 'badge-warning' : 'badge-danger'}`}>
+                              {u.status}
+                            </span>
+                          </td>
+                          <td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.editor}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '5px' }}>
+                              {u.status === 'pending' && (
+                                <>
+                                  <button onClick={() => supabase.from('profiles').update({ status: 'approved' }).eq('id', u.id)} className="btn-success" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.approve}</button>
+                                  <button onClick={() => supabase.from('profiles').update({ status: 'rejected' }).eq('id', u.id)} className="btn-danger" style={{ padding: '4px 8px', fontSize: '12px' }}>{t.reject}</button>
+                                </>
+                              )}
+                              {u.role !== 'admin' && (
+                                <button onClick={() => supabase.from('profiles').update({ role: 'admin' }).eq('id', u.id)} className="btn-primary" style={{ padding: '4px 8px', fontSize: '12px' }}>Make Admin</button>
+                              )}
+                              <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('profiles').delete().eq('id', u.id); }} className="btn-delete" title={t.logout}>🗑️</button>
+                            </div>
                           </td>
                         </tr>
                       ))}</tbody>
