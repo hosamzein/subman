@@ -283,7 +283,6 @@ function App() {
       ) : (
         <>
           <aside className="sidebar">
-            <div className="logo">M</div>
             <nav>
               <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title={t.dashboard}>📊</button>
               <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title={t.subscribers}>👥</button>
@@ -296,8 +295,8 @@ function App() {
                   <button onClick={() => setCurrentView('settings')} className={currentView === 'settings' ? 'active' : ''} title={t.settings}>⚙️</button>
                 </>
               )}
-              <button onClick={() => { setIsLoggedIn(false); setCurrentUser(null); }} className="logout" title={t.logout}>🚪</button>
             </nav>
+            <button onClick={() => { setIsLoggedIn(false); setCurrentUser(null); }} className="logout" title={t.logout}>🚪</button>
           </aside>
 
           <main className="content">
@@ -482,7 +481,7 @@ function App() {
                         <tr key={u.id}>
                           <td>{u.username}</td><td><span className="badge badge-service">{u.role === 'admin' ? t.admin : t.editor}</span></td>
                           <td>
-                            <button onClick={() => { setUserFormData({username: u.username, password: u.password, role: u.role}); setEditingUserId(u.id!); window.scrollTo(0,0); }} className="btn-edit" title={t.update}>✏️</button>
+                            <button onClick={() => { setUserFormData({username: u.username, password: u.password, role: u.role as 'admin' | 'editor'}); setEditingUserId(u.id!); window.scrollTo(0,0); }} className="btn-edit" title={t.update}>✏️</button>
                             <button onClick={() => { if(window.confirm(t.confirmDelete)) db.users.delete(u.id!); }} className="btn-delete" title={t.logout}>🗑️</button>
                           </td>
                         </tr>

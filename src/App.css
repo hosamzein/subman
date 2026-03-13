@@ -86,7 +86,8 @@ body {
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 2.5rem 0;
+  justify-content: center; /* Center icons vertically */
+  padding: 2rem 0;
   position: fixed;
   top: 0; bottom: 0;
   z-index: 1000;
@@ -95,18 +96,12 @@ body {
 [dir="rtl"] .sidebar { right: 0; left: auto; border-left: 1px solid var(--border-color); border-right: none; }
 [dir="ltr"] .sidebar { left: 0; right: auto; border-right: 1px solid var(--border-color); border-left: none; }
 
-.sidebar .logo {
-  font-family: 'Orbitron', sans-serif;
-  font-size: 1.8rem;
-  font-weight: 800;
-  color: var(--text-main);
-  margin-bottom: 3.5rem;
-}
-
 .sidebar nav {
   display: flex;
   flex-direction: column;
   gap: 1.5rem;
+  margin-bottom: auto; /* Push logout to bottom if needed, or keep centered */
+  margin-top: auto;
 }
 
 .sidebar nav button {
