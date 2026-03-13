@@ -829,15 +829,15 @@ function App() {
               {currentView === 'dashboard' && (
                 <div className="dashboard-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '2rem' }}>
-                    <h2>{t.dashboard}</h2>
-                    <div className="dashboard-filters" style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'من' : 'From'}</label>
-                        <input type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
+                    <h2 className="section-heading">{t.dashboard}</h2>
+                    <div className="dashboard-filters">
+                      <div className="filter-card">
+                        <label>{lang === 'ar' ? 'من' : 'From'}</label>
+                        <input className="filter-input" type="date" value={statsFromDate} onChange={e => setStatsFromDate(e.target.value)} />
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <label style={{ fontSize: '0.85rem', fontWeight: 600, color: '#a0a0a0' }}>{lang === 'ar' ? 'إلى' : 'To'}</label>
-                        <input type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} style={{ padding: '0.4rem 0.8rem', borderRadius: '8px', border: '1px solid #e0e0e0', fontSize: '0.9rem' }} />
+                      <div className="filter-card">
+                        <label>{lang === 'ar' ? 'إلى' : 'To'}</label>
+                        <input className="filter-input" type="date" value={statsToDate} onChange={e => setStatsToDate(e.target.value)} />
                       </div>
                     </div>
                   </div>
@@ -886,7 +886,7 @@ function App() {
 
               {currentView === 'settings' && (
                 <div className="settings-view animate-fade">
-                  <h2>{t.settings}</h2>
+                  <h2 className="section-heading">{t.settings}</h2>
                   <div className="form-card">
                     <h3>{t.waTemplate}</h3>
                     <p className="help-text">{t.waHelp}</p>
@@ -899,7 +899,7 @@ function App() {
 
               {currentView === 'notifications' && (
                 <div className="notifications-view animate-fade">
-                  <div className="header-actions"><h2>{t.notifCenter}</h2><button onClick={() => { if (currentUser) { void supabase.from('notifications').delete().eq('user_id', currentUser.id); } }} className="btn-secondary">{t.clearAll}</button></div>
+                  <div className="header-actions"><h2 className="section-heading">{t.notifCenter}</h2><button onClick={() => { if (currentUser) { void supabase.from('notifications').delete().eq('user_id', currentUser.id); } }} className="btn-secondary">{t.clearAll}</button></div>
                   <div className="notifications-list">
                     {!notifications || notifications.length === 0 ? <p className="empty-msg">{t.noNotifs}</p> :
                       notifications.map(n => (<div key={n.id} className={`notification-item type-${n.type}`}><div className="notif-content"><p>{n.message}</p><small>{new Date(n.createdAt).toLocaleString(lang === 'ar' ? 'ar-EG' : 'en-US')}</small></div><button onClick={() => supabase.from('notifications').delete().eq('id', n.id)} className="btn-close">×</button></div>))
@@ -911,8 +911,9 @@ function App() {
               {currentView === 'subscribers' && (
                 <div className="subscribers-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontSize: '1.5rem', margin: 0 }}>{t.manageSubs}</h2>
+                    <h2 className="section-heading">{t.manageSubs}</h2>
                   </div>
+                  <p className="view-banner">{lang === 'ar' ? 'ابحث، صفِّ النتائج، ثم صدّر أو عدّل البيانات مباشرة.' : 'Search, filter, export, and edit subscriber data directly from this view.'}</p>
 
                   <div style={{ display: 'flex', flexDirection: 'row', gap: '0.5rem', marginBottom: '1.5rem', alignItems: 'center' }}>
                     <div style={{ flex: 1 }}>
@@ -922,27 +923,12 @@ function App() {
                         className="search-input-refined"
                         value={searchQuery}
                         onChange={e => setSearchQuery(e.target.value)}
-                        style={{ width: '100%', margin: 0, padding: '0.6rem 1rem', borderRadius: '8px', border: '1px solid #e0e0e0', backgroundColor: '#fff', color: '#000' }}
+                        style={{ width: '100%', margin: 0, padding: '0.8rem 1rem' }}
                       />
                     </div>
 
                     <div>
-                      <label
-                        className="renewal-checkbox-large"
-                        style={{
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '0.5rem',
-                          cursor: 'pointer',
-                          padding: '0.6rem 1rem',
-                          borderRadius: '8px',
-                          background: '#fff',
-                          border: '1px solid #e0e0e0',
-                          transition: 'all 0.2s',
-                          userSelect: 'none',
-                          color: '#000'
-                        }}
-                      >
+                      <label className="renewal-toggle">
                         <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>📥</span>
                         <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t.renewalOnly}</span>
                         <input
@@ -954,15 +940,15 @@ function App() {
                       </label>
                     </div>
 
-                    <button onClick={handleExport} className="btn-primary" style={{ padding: '0.6rem 1.5rem', width: 'auto', borderRadius: '8px', margin: 0 }} title={t.export}>
+                    <button onClick={handleExport} className="btn-primary" style={{ padding: '0.75rem 1.5rem', width: 'auto', margin: 0 }} title={t.export}>
                       📊 {t.export}
                     </button>
                   </div>
 
-                  {successMessage && <div style={{ background: '#000', color: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', textAlign: 'center', fontWeight: 'bold' }}>{successMessage}</div>}
+                  {successMessage && <div className="success-banner" style={{ marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
 
                   <div className="main-content-card">
-                    <div style={{ padding: '2.5rem', borderBottom: '1px solid #f0f0f0' }}>
+                    <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
                       <form onSubmit={async (e) => {
                         e.preventDefault();
                         if (!currentUser) {
@@ -1081,18 +1067,18 @@ function App() {
                         <tbody>
                           {filteredSubscriptions.map(s => (
                             <tr key={s.id}>
-                              <td style={{ fontWeight: 600, color: '#a0a0a0' }}>#{s.id}</td>
+                              <td style={{ fontWeight: 600 }} className="inline-muted">#{s.id}</td>
                               <td>
                                 <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
-                                <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>{s.category || SERVICE_CATEGORIES[s.service]}</div>
+                                <div className="subscriber-meta">{s.category || SERVICE_CATEGORIES[s.service]}</div>
                               </td>
                               <td>
                                 <div style={{ fontWeight: 600 }}>{s.name}</div>
-                                <div style={{ color: '#a0a0a0', fontSize: '0.85rem' }}>+{s.countryCode} {s.whatsapp}</div>
+                                <div className="subscriber-meta">+{s.countryCode} {s.whatsapp}</div>
                               </td>
                               <td>
                                 <span className={`badge ${getStatus(s.endDate).className}`}>{formatDateDisplay(s.endDate)}</span>
-                                <div style={{ marginTop: '4px', fontSize: '0.8rem', color: '#a0a0a0' }}>
+                                <div className="subscriber-meta" style={{ marginTop: '4px', fontSize: '0.8rem' }}>
                                   {s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}
                                 </div>
                               </td>
@@ -1116,8 +1102,9 @@ function App() {
               {currentView === 'users' && (
                 <div className="users-view animate-fade">
                   <div className="header-actions" style={{ marginBottom: '2rem' }}>
-                    <h2>{t.manageUsers}</h2>
+                    <h2 className="section-heading">{t.manageUsers}</h2>
                   </div>
+                  <p className="view-banner">{lang === 'ar' ? 'تابع حالة الحساب، الصلاحية، وطريقة التسجيل لكل مستخدم.' : 'Review each user account status, role, and sign-in method in one place.'}</p>
                   <div className="table-responsive">
                     <table className="admin-table">
                       <thead><tr><th>{t.user}</th><th>{t.status}</th><th>{t.role}</th><th>{t.authMethod}</th><th>{t.actions}</th></tr></thead>

@@ -494,6 +494,15 @@ body::before {
 .header-actions h2 {
   margin: 0;
   font-size: 1.5rem;
+  color: var(--text-main);
+}
+
+.section-heading {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.03em;
 }
 
 .view-container {
@@ -523,6 +532,36 @@ body::before {
   backdrop-filter: blur(16px);
 }
 
+.stat-card,
+.chart-card,
+.notification-item,
+.form-card,
+.main-content-card {
+  position: relative;
+}
+
+.stat-card::before,
+.chart-card::before,
+.notification-item::before,
+.form-card::before,
+.main-content-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), transparent 28%);
+  opacity: 0.35;
+}
+
+.dark-theme .stat-card::before,
+.dark-theme .chart-card::before,
+.dark-theme .notification-item::before,
+.dark-theme .form-card::before,
+.dark-theme .main-content-card::before {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), transparent 30%);
+}
+
 .stat-card h3, .chart-card h3 {
   margin: 0;
   font-size: 0.9rem;
@@ -536,6 +575,11 @@ body::before {
   font-weight: 700;
   margin: 0.5rem 0;
   color: var(--text-main);
+}
+
+.stat-card small {
+  color: var(--text-muted);
+  font-weight: 600;
 }
 
 .chart-placeholder {
@@ -582,6 +626,72 @@ body::before {
 .search-input-refined:focus {
   border-color: var(--border-hover);
   box-shadow: var(--glow);
+}
+
+.dashboard-filters {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.filter-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.65rem 0.95rem;
+  border-radius: 18px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-soft);
+  color: var(--text-main);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.dark-theme .filter-card {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.filter-card label {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+.filter-input {
+  padding: 0.45rem 0.8rem;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text-main);
+  font: inherit;
+}
+
+.dark-theme .filter-input {
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.renewal-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  cursor: pointer;
+  padding: 0.75rem 1rem;
+  border-radius: 18px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border-color);
+  user-select: none;
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.renewal-toggle input {
+  accent-color: var(--accent-strong);
+}
+
+.view-banner {
+  margin-bottom: 1rem;
+  color: var(--text-muted);
+  font-size: 0.95rem;
 }
 
 .top-actions {
@@ -817,6 +927,7 @@ body::before {
   margin-top: 1rem;
   position: relative;
   z-index: 2;
+  overflow: hidden;
 }
 
 .admin-table th {
@@ -826,6 +937,11 @@ body::before {
   font-weight: 700;
   color: var(--text-main);
   border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.12);
+}
+
+.dark-theme .admin-table th {
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .admin-table td {
@@ -842,6 +958,25 @@ body::before {
 
 .admin-table tr:hover {
   background: rgba(255, 255, 255, 0.03);
+}
+
+.admin-table td:first-child,
+.admin-table th:first-child {
+  padding-right: 1.75rem;
+}
+
+.admin-table td:last-child,
+.admin-table th:last-child {
+  padding-left: 1.75rem;
+}
+
+.inline-muted {
+  color: var(--text-muted);
+}
+
+.subscriber-meta {
+  color: var(--text-muted);
+  font-size: 0.85rem;
 }
 
 .admin-table .badge {
@@ -954,6 +1089,7 @@ body::before {
   .main-header { padding: 0 1.25rem; }
   .header-actions { flex-direction: column; align-items: stretch; }
   .top-actions { flex-direction: column; align-items: stretch; gap: 1rem; }
+  .dashboard-filters { width: 100%; }
   .view-container { padding: 1.5rem 1rem; }
   .search-input-refined { font-size: 1rem; padding: 0.8rem 1.2rem; }
   .admin-table { min-width: 700px; /* Enable horizontal scroll on tiny screens */ }
