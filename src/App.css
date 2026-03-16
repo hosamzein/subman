@@ -827,6 +827,26 @@ body::before {
   padding: 2rem;
 }
 
+.two-factor-hint {
+  margin-bottom: 1.25rem;
+  padding: 1rem 1.1rem;
+  border-radius: 18px;
+  background: var(--surface-soft);
+  border: 1px solid var(--border-color);
+}
+
+.two-factor-hint strong {
+  display: block;
+  margin-bottom: 0.45rem;
+  color: var(--text-main);
+}
+
+.two-factor-hint p {
+  margin: 0;
+  color: var(--text-muted);
+  line-height: 1.7;
+}
+
 .two-factor-row {
   align-items: stretch;
 }

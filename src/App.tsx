@@ -125,17 +125,20 @@ const translations = {
     searchSubscriber: "ابحث عن مشترك بالاسم أو البريد أو الواتساب...",
     noSubscriberLinked: "لا يوجد مشترك مرتبط",
     twoFactorGenerator: "مولد 2FA",
-    twoFactorIntro: "أدخل مفتاح Base32 لتوليد رمز TOTP مؤقت داخل المتصفح فقط بدون حفظ أي بيانات.",
+    twoFactorIntro: "أدخل مفتاح Base32 لتوليد رمز TOTP داخل المتصفح فقط بدون حفظ أي بيانات. يتم مسح السر والرمز محلياً بعد 10 دقائق.",
     twoFactorSecretLabel: "2FA Secret",
     currentCode: "الرمز الحالي",
-    nextRefresh: "يتجدد خلال",
+    nextRefresh: "ينتهي خلال",
     seconds: "ثانية",
-    generateCode: "توليد الرمز",
+    generateCode: "إنشاء / تجديد رمز 2FA",
     copyCode: "نسخ الرمز",
     clear: "مسح",
     secretRequired: "أدخل مفتاح 2FA أولاً",
     invalidSecret: "المفتاح غير صالح. استخدم Base32 فقط.",
     codeCopied: "تم نسخ الرمز",
+    toolExpired: "انتهت مهلة 10 دقائق. أدخل السر وأنشئ الرمز مرة أخرى.",
+    chatgptMfaHintTitle: "مثال للحصول على السر من ChatGPT",
+    chatgptMfaHintBody: "Open ChatGPT -> Profile -> Settings -> Security -> Enable Multi-Factor Authentication (MFA) -> ChatGPT will show a QR code + secret key.",
     pendingTitle: "الحساب قيد المراجعة",
     pendingMsg: `حسابك قيد المراجعة حالياً من قبل الإدارة. يرجى مراجعة المسؤول عبر: ${SUPPORT_EMAIL}`,
     register: "تسجيل حساب جديد",
@@ -229,17 +232,20 @@ const translations = {
     searchSubscriber: "Search subscriber by name, email, or WhatsApp...",
     noSubscriberLinked: "No linked subscriber",
     twoFactorGenerator: "2FA Generator",
-    twoFactorIntro: "Enter a Base32 secret to generate a temporary TOTP code in-browser only. Nothing is stored.",
+    twoFactorIntro: "Enter a Base32 secret to generate a TOTP code in-browser only. Nothing is stored, and the secret/code are cleared locally after 10 minutes.",
     twoFactorSecretLabel: "2FA Secret",
     currentCode: "Current Code",
-    nextRefresh: "Refreshes in",
+    nextRefresh: "Expires in",
     seconds: "seconds",
-    generateCode: "Generate Code",
+    generateCode: "Generate / Regenerate 2FA Code",
     copyCode: "Copy Code",
     clear: "Clear",
     secretRequired: "Enter a 2FA secret first",
     invalidSecret: "Invalid secret. Use Base32 only.",
     codeCopied: "Code copied",
+    toolExpired: "The 10-minute limit expired. Enter the secret and generate again.",
+    chatgptMfaHintTitle: "Example: get the secret from ChatGPT",
+    chatgptMfaHintBody: "Open ChatGPT -> Profile -> Settings -> Security -> Enable Multi-Factor Authentication (MFA) -> ChatGPT will show a QR code + secret key.",
     pendingTitle: "Account Pending",
     pendingMsg: `Your account is currently pending approval. Please contact the administrator at ${SUPPORT_EMAIL}`,
     register: "Register New Account",
@@ -552,7 +558,8 @@ function App() {
   const [twoFactorSecret, setTwoFactorSecret] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorError, setTwoFactorError] = useState('');
-  const [twoFactorCountdown, setTwoFactorCountdown] = useState(30 - (Math.floor(Date.now() / 1000) % 30));
+  const [twoFactorExpiryAt, setTwoFactorExpiryAt] = useState<number | null>(null);
+  const [twoFactorCountdown, setTwoFactorCountdown] = useState(600);
   const [showOnlyRenewals, setShowOnlyRenewals] = useState(false);
 
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -700,11 +707,26 @@ function App() {
 
   useEffect(() => {
     const timer = window.setInterval(() => {
-      setTwoFactorCountdown(30 - (Math.floor(Date.now() / 1000) % 30));
+      setTwoFactorCountdown(() => {
+        if (!twoFactorExpiryAt) {
+          return 600;
+        }
+
+        const nextValue = Math.max(0, Math.ceil((twoFactorExpiryAt - Date.now()) / 1000));
+
+        if (nextValue === 0) {
+          setTwoFactorSecret('');
+          setTwoFactorCode('');
+          setTwoFactorExpiryAt(null);
+          setTwoFactorError(t.toolExpired);
+        }
+
+        return nextValue;
+      });
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, []);
+  }, [t.toolExpired, twoFactorExpiryAt]);
 
   useEffect(() => {
     if (!isLoggedIn || !currentUser || (userProfile?.status === 'pending' && userProfile.role !== 'admin')) {
@@ -814,6 +836,8 @@ function App() {
       const code = await generateTotpCode(normalizedSecret);
       setTwoFactorCode(code);
       setTwoFactorError('');
+      setTwoFactorExpiryAt(Date.now() + 10 * 60 * 1000);
+      setTwoFactorCountdown(600);
     } catch {
       setTwoFactorCode('');
       setTwoFactorError(t.invalidSecret);
@@ -834,15 +858,9 @@ function App() {
     setTwoFactorSecret('');
     setTwoFactorCode('');
     setTwoFactorError('');
+    setTwoFactorExpiryAt(null);
+    setTwoFactorCountdown(600);
   }, []);
-
-  useEffect(() => {
-    if (!twoFactorSecret.trim() || currentView !== 'twoFactorTool') {
-      return;
-    }
-
-    void handleGenerateTwoFactorCode();
-  }, [currentView, handleGenerateTwoFactorCode, twoFactorCountdown, twoFactorSecret]);
 
   const sendWhatsApp = (sub: Subscription) => {
     if (!sub.whatsapp) {
@@ -1463,13 +1481,25 @@ function App() {
                             </div>
                             <div className="input-field-group">
                               <label>{t.serviceAccountTwoFactorSecret}</label>
-                              <input
+                          <input
                                 type="text"
                                 placeholder={t.serviceAccountTwoFactorSecret}
                                 value={serviceAccountTwoFactorSecret}
                                 onChange={e => setServiceAccountTwoFactorSecret(e.target.value)}
                               />
                               <small className="help-text" style={{ marginTop: '0.35rem' }}>{t.serviceAccountTwoFactorHint}</small>
+                              <button
+                                type="button"
+                                className="btn-secondary"
+                                style={{ marginTop: '0.5rem' }}
+                                onClick={() => {
+                                  setTwoFactorSecret(serviceAccountTwoFactorSecret);
+                                  setCurrentView('twoFactorTool');
+                                  window.scrollTo(0, 0);
+                                }}
+                              >
+                                {t.generateCode}
+                              </button>
                             </div>
                           </div>
                         </div>
@@ -1586,6 +1616,10 @@ function App() {
                   <h2 className="section-heading">{t.twoFactorGenerator}</h2>
                   <p className="view-banner">{t.twoFactorIntro}</p>
                   <div className="form-card two-factor-card">
+                    <div className="two-factor-hint">
+                      <strong>{t.chatgptMfaHintTitle}</strong>
+                      <p>{t.chatgptMfaHintBody}</p>
+                    </div>
                     <div className="form-section">
                       <div className="form-row two-factor-row">
                         <div className="input-field-group" style={{ flex: 2 }}>
