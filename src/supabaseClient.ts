@@ -53,6 +53,8 @@ export type DbSubscription = {
   payment: number;
   workspace: string;
   createdat: string;
+  updatedat?: string | null;
+  updatedby?: string | null;
 };
 
 export type DbServiceAccount = {
@@ -64,6 +66,8 @@ export type DbServiceAccount = {
   mail_password: string;
   subscriber_subscription_id: number | null;
   createdat: string;
+  updatedat?: string | null;
+  updatedby?: string | null;
 };
 
 export type Subscription = {
@@ -82,6 +86,8 @@ export type Subscription = {
   payment: number;
   workspace: string;
   createdAt: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
 };
 
 export type ServiceAccount = {
@@ -93,6 +99,8 @@ export type ServiceAccount = {
   mailPassword: string;
   subscriberSubscriptionId: number | null;
   createdAt: string;
+  updatedAt?: string | null;
+  updatedBy?: string | null;
 };
 
 export type DbNotificationRecord = {

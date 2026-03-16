@@ -30,12 +30,6 @@ const SERVICE_CATEGORIES: Record<string, string> = {
   'Perplexity': 'Artificial Intelligence',
   'Gemini': 'Artificial Intelligence',
 };
-const SERVICE_PROFILE_FIELDS: Record<string, { email: boolean; whatsapp: boolean }> = {
-  Grok: { email: false, whatsapp: false },
-  ChatGPT: { email: true, whatsapp: false },
-  Perplexity: { email: true, whatsapp: true },
-  Gemini: { email: true, whatsapp: true },
-};
 const COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#9b59b6'];
 const DARK_COLORS = ['#8edcff', '#6ee7b7', '#facc15', '#fb923c', '#c084fc'];
 const COUNTRY_CODES = [
@@ -119,11 +113,43 @@ const translations = {
     subscriptionEmail: "بريد الاشتراك",
     servicePassword: "كلمة مرور الخدمة",
     mailPassword: "كلمة مرور البريد",
+    passwords: "بيانات الدخول",
     serviceAccountTwoFactorSecret: "2FA Secret للخدمة",
     serviceAccountTwoFactorHint: "يستخدم للتوليد فقط داخل الواجهة ولا يتم حفظه",
     linkedSubscriber: "المشترك المرتبط",
     searchSubscriber: "ابحث عن مشترك بالاسم أو البريد أو الواتساب...",
     noSubscriberLinked: "لا يوجد مشترك مرتبط",
+    linked: "مربوط",
+    unlinked: "غير مربوط",
+    quickFilters: "فلاتر سريعة",
+    tableDensity: "كثافة الجدول",
+    compact: "مضغوط",
+    comfortable: "مريح",
+    visibleColumns: "الأعمدة الظاهرة",
+    contact: "التواصل",
+    activity: "آخر تعديل",
+    lastUpdated: "آخر تعديل",
+    unknownUser: "غير معروف",
+    copied: "تم النسخ",
+    createSubscriber: "إضافة مشترك جديد",
+    editSubscriber: "تعديل المشترك",
+    createServiceAccount: "إضافة حساب خدمة",
+    editServiceAccount: "تعديل حساب الخدمة",
+    close: "إغلاق",
+    expiringSoon: "قريب الانتهاء",
+    expired: "منتهي",
+    missingEmail: "بدون بريد",
+    missingWhatsapp: "بدون واتساب",
+    missingContact: "بدون وسيلة تواصل",
+    linkedOnly: "المربوط فقط",
+    unlinkedOnly: "غير المربوط",
+    recommendedMatches: "اقتراحات الربط",
+    serviceMatched: "مطابق للخدمة",
+    contactComplete: "بيانات تواصل مكتملة",
+    contactPartial: "بيانات تواصل جزئية",
+    contactMissing: "لا توجد وسيلة تواصل",
+    contactMissingHint: "يفضل إضافة البريد أو رقم الواتساب حتى يمكن التواصل مع المشترك لاحقاً.",
+    contactColumn: "بيانات التواصل",
     twoFactorGenerator: "مولد 2FA",
     twoFactorIntro: "أدخل مفتاح Base32 لتوليد رمز TOTP داخل المتصفح فقط بدون حفظ أي بيانات. يتم مسح السر والرمز محلياً بعد 10 دقائق.",
     twoFactorSecretLabel: "2FA Secret",
@@ -226,11 +252,43 @@ const translations = {
     subscriptionEmail: "Subscription Email",
     servicePassword: "Service Password",
     mailPassword: "Mail Password",
+    passwords: "Passwords",
     serviceAccountTwoFactorSecret: "Service 2FA Secret",
     serviceAccountTwoFactorHint: "Used only for on-screen generation and is not saved",
     linkedSubscriber: "Linked Subscriber",
     searchSubscriber: "Search subscriber by name, email, or WhatsApp...",
     noSubscriberLinked: "No linked subscriber",
+    linked: "Linked",
+    unlinked: "Unlinked",
+    quickFilters: "Quick Filters",
+    tableDensity: "Table Density",
+    compact: "Compact",
+    comfortable: "Comfortable",
+    visibleColumns: "Visible Columns",
+    contact: "Contact",
+    activity: "Last Update",
+    lastUpdated: "Last Updated",
+    unknownUser: "Unknown",
+    copied: "Copied",
+    createSubscriber: "Create Subscriber",
+    editSubscriber: "Edit Subscriber",
+    createServiceAccount: "Create Service Account",
+    editServiceAccount: "Edit Service Account",
+    close: "Close",
+    expiringSoon: "Expiring Soon",
+    expired: "Expired",
+    missingEmail: "Missing Email",
+    missingWhatsapp: "Missing WhatsApp",
+    missingContact: "Missing Contact",
+    linkedOnly: "Linked Only",
+    unlinkedOnly: "Unlinked",
+    recommendedMatches: "Recommended Matches",
+    serviceMatched: "Matches service",
+    contactComplete: "Contact complete",
+    contactPartial: "Contact partial",
+    contactMissing: "No contact method",
+    contactMissingHint: "Add an email or WhatsApp number so the subscriber can be reached later.",
+    contactColumn: "Contact Details",
     twoFactorGenerator: "2FA Generator",
     twoFactorIntro: "Enter a Base32 secret to generate a TOTP code in-browser only. Nothing is stored, and the secret/code are cleared locally after 10 minutes.",
     twoFactorSecretLabel: "2FA Secret",
@@ -269,6 +327,7 @@ const translations = {
 type Language = keyof typeof translations;
 type Theme = 'dark' | 'light';
 type View = 'login' | 'dashboard' | 'subscribers' | 'serviceAccounts' | 'twoFactorTool' | 'users' | 'notifications' | 'settings';
+type TableDensity = 'comfortable' | 'compact';
 
 type SubscriptionFormData = Pick<
   Subscription,
@@ -297,6 +356,23 @@ type ServiceAccountFormData = Pick<
   ServiceAccount,
   'service' | 'subscriptionEmail' | 'servicePassword' | 'mailPassword' | 'subscriberSubscriptionId'
 >;
+
+type SubscriberQuickFilter = 'all' | 'expiringSoon' | 'expired' | 'missingEmail' | 'missingWhatsapp' | 'missingContact';
+type ServiceAccountQuickFilter = 'all' | 'linked' | 'unlinked';
+
+type SubscriberColumnVisibility = {
+  category: boolean;
+  contact: boolean;
+  workspace: boolean;
+  payment: boolean;
+  activity: boolean;
+};
+
+type ServiceAccountColumnVisibility = {
+  passwords: boolean;
+  linkedSubscriber: boolean;
+  activity: boolean;
+};
 
 const getStoredLanguage = (): Language => {
   const storedLanguage = localStorage.getItem('subman_lang');
@@ -331,17 +407,10 @@ const createDefaultServiceAccountFormData = (): ServiceAccountFormData => ({
   subscriberSubscriptionId: null,
 });
 
-const getServiceProfileFields = (service: string) => SERVICE_PROFILE_FIELDS[service] ?? { email: true, whatsapp: true };
-
 const sanitizeFormDataForService = (data: SubscriptionFormData, service: string): SubscriptionFormData => {
-  const profileFields = getServiceProfileFields(service);
-
   return {
     ...data,
     service,
-    email: profileFields.email ? data.email : '',
-    whatsapp: profileFields.whatsapp ? data.whatsapp : '',
-    countryCode: profileFields.whatsapp ? data.countryCode : '20',
   };
 };
 
@@ -368,6 +437,8 @@ const normalizeSubscription = (subscription: DbSubscription): Subscription => ({
   payment: Number(subscription.payment),
   workspace: subscription.workspace,
   createdAt: subscription.createdat,
+  updatedAt: subscription.updatedat ?? null,
+  updatedBy: subscription.updatedby ?? null,
 });
 
 const normalizeNotification = (notification: DbNotificationRecord): NotificationRecord => ({
@@ -384,6 +455,8 @@ const normalizeServiceAccount = (serviceAccount: DbServiceAccount): ServiceAccou
   mailPassword: serviceAccount.mail_password,
   subscriberSubscriptionId: serviceAccount.subscriber_subscription_id,
   createdAt: serviceAccount.createdat,
+  updatedAt: serviceAccount.updatedat ?? null,
+  updatedBy: serviceAccount.updatedby ?? null,
 });
 
 const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
@@ -414,6 +487,20 @@ const formatDateDisplay = (dateStr: string) => {
 
   const [year, month, day] = dateStr.split('-');
   return `${day}/${month}/${year}`;
+};
+
+const formatDateTimeDisplay = (dateStr: string | null | undefined, locale: string) => {
+  if (!dateStr) {
+    return '-';
+  }
+
+  return new Date(dateStr).toLocaleString(locale, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 };
 
 const calculateEndDate = (startDate: string, duration: SubscriptionDuration) => {
@@ -486,6 +573,21 @@ const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
   return (binary % (10 ** digits)).toString().padStart(digits, '0');
 };
 
+const getContactHealth = (subscription: Pick<Subscription, 'email' | 'whatsapp'>) => {
+  const hasEmail = Boolean(subscription.email?.trim());
+  const hasWhatsapp = Boolean(subscription.whatsapp?.trim());
+
+  if (hasEmail && hasWhatsapp) {
+    return 'complete';
+  }
+
+  if (hasEmail || hasWhatsapp) {
+    return 'partial';
+  }
+
+  return 'missing';
+};
+
 const readSearchableValue = (value: string | null | undefined) => value?.toLowerCase() ?? '';
 
 const resolveAuthMethod = (providers: string[] | null | undefined): UserAuthMethod => {
@@ -554,6 +656,22 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceAccountSearchQuery, setServiceAccountSearchQuery] = useState('');
   const [subscriberLookupQuery, setSubscriberLookupQuery] = useState('');
+  const [subscriberQuickFilter, setSubscriberQuickFilter] = useState<SubscriberQuickFilter>('all');
+  const [serviceAccountQuickFilter, setServiceAccountQuickFilter] = useState<ServiceAccountQuickFilter>('all');
+  const [subscriberDensity, setSubscriberDensity] = useState<TableDensity>('comfortable');
+  const [serviceAccountDensity, setServiceAccountDensity] = useState<TableDensity>('comfortable');
+  const [subscriberColumns, setSubscriberColumns] = useState<SubscriberColumnVisibility>({
+    category: true,
+    contact: true,
+    workspace: true,
+    payment: true,
+    activity: true,
+  });
+  const [serviceAccountColumns, setServiceAccountColumns] = useState<ServiceAccountColumnVisibility>({
+    passwords: true,
+    linkedSubscriber: true,
+    activity: true,
+  });
   const [serviceAccountTwoFactorSecret, setServiceAccountTwoFactorSecret] = useState('');
   const [twoFactorSecret, setTwoFactorSecret] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
@@ -567,7 +685,8 @@ function App() {
 
   const [formData, setFormData] = useState<SubscriptionFormData>(createDefaultFormData);
   const [serviceAccountFormData, setServiceAccountFormData] = useState<ServiceAccountFormData>(createDefaultServiceAccountFormData);
-  const activeProfileFields = useMemo(() => getServiceProfileFields(formData.service), [formData.service]);
+  const [isSubscriberModalOpen, setIsSubscriberModalOpen] = useState(false);
+  const [isServiceAccountModalOpen, setIsServiceAccountModalOpen] = useState(false);
   const t = translations[lang];
   const chartPalette = theme === 'dark' ? DARK_COLORS : COLORS;
   const chartAxisColor = theme === 'dark' ? '#c9d6ea' : '#5f7293';
@@ -811,17 +930,19 @@ function App() {
     await supabase.auth.signOut();
   };
 
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setFormData(createDefaultFormData());
     setEditingId(null);
-  };
+    setIsSubscriberModalOpen(false);
+  }, []);
 
-  const resetServiceAccountForm = () => {
+  const resetServiceAccountForm = useCallback(() => {
     setServiceAccountFormData(createDefaultServiceAccountFormData());
     setEditingServiceAccountId(null);
     setSubscriberLookupQuery('');
     setServiceAccountTwoFactorSecret('');
-  };
+    setIsServiceAccountModalOpen(false);
+  }, []);
 
   const handleGenerateTwoFactorCode = useCallback(async () => {
     const normalizedSecret = normalizeBase32Secret(twoFactorSecret);
@@ -891,6 +1012,110 @@ function App() {
     return { label: lang === 'ar' ? 'نشط' : 'Active', className: 'badge-success', needsRenewal: false };
   }, [lang]);
 
+  const profilesById = useMemo(() => {
+    const entries = allUsers.map((user) => [user.id, user] as const);
+
+    if (userProfile) {
+      entries.push([userProfile.id, { ...userProfile, authMethod: 'unknown' }]);
+    }
+
+    return new Map(entries);
+  }, [allUsers, userProfile]);
+  const subscriptionsById = useMemo(() => new Map(subscriptions.map((subscription) => [subscription.id, subscription])), [subscriptions]);
+
+  const getActorName = useCallback((userId: string | null | undefined) => {
+    if (!userId) {
+      return t.unknownUser;
+    }
+
+    return profilesById.get(userId)?.username ?? t.unknownUser;
+  }, [profilesById, t.unknownUser]);
+
+  const copyText = useCallback(async (value: string) => {
+    if (!value) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(value);
+    setSuccessMessage(t.copied);
+    setTimeout(() => setSuccessMessage(''), 2500);
+  }, [t.copied]);
+
+  const openSubscriptionEditor = useCallback((subscription: Subscription) => {
+    setFormData(sanitizeFormDataForService({
+      ...subscription,
+      category: subscription.category || SERVICE_CATEGORIES[subscription.service] || '',
+      duration: subscription.duration || 'monthly',
+    }, subscription.service));
+    setEditingId(subscription.id);
+    setIsSubscriberModalOpen(true);
+  }, []);
+
+  const openServiceAccountEditor = useCallback((account: ServiceAccount) => {
+    const linkedSubscriber = subscriptionsById.get(account.subscriberSubscriptionId ?? -1);
+
+    setServiceAccountFormData({
+      service: account.service,
+      subscriptionEmail: account.subscriptionEmail,
+      servicePassword: account.servicePassword,
+      mailPassword: account.mailPassword,
+      subscriberSubscriptionId: account.subscriberSubscriptionId,
+    });
+    setServiceAccountTwoFactorSecret('');
+    setEditingServiceAccountId(account.id);
+    setSubscriberLookupQuery(linkedSubscriber ? `${linkedSubscriber.name} - ${linkedSubscriber.service}` : '');
+    setIsServiceAccountModalOpen(true);
+  }, [subscriptionsById]);
+
+  const submitSubscriptionForm = useCallback(async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const preparedFormData = sanitizeFormDataForService(formData, formData.service);
+    const payload = {
+      ...toDbSubscriptionPayload(preparedFormData),
+      updatedat: now,
+      updatedby: currentUser.id,
+    };
+
+    if (editingId) {
+      await supabase.from('subscriptions').update(payload).eq('id', editingId);
+      setSuccessMessage(t.updated);
+    } else {
+      await supabase.from('subscriptions').insert([{ ...payload, user_id: currentUser.id, createdat: now }]);
+      setSuccessMessage(t.saved);
+    }
+
+    resetForm();
+    setTimeout(() => setSuccessMessage(''), 3000);
+  }, [currentUser, editingId, formData, resetForm, t.saved, t.updated]);
+
+  const submitServiceAccountForm = useCallback(async () => {
+    if (!currentUser) {
+      return;
+    }
+
+    const now = new Date().toISOString();
+    const payload = {
+      ...toDbServiceAccountPayload(serviceAccountFormData),
+      updatedat: now,
+      updatedby: currentUser.id,
+    };
+
+    if (editingServiceAccountId) {
+      await supabase.from('service_accounts').update(payload).eq('id', editingServiceAccountId);
+      setSuccessMessage(t.updated);
+    } else {
+      await supabase.from('service_accounts').insert([{ ...payload, user_id: currentUser.id, createdat: now }]);
+      setSuccessMessage(t.saved);
+    }
+
+    resetServiceAccountForm();
+    setTimeout(() => setSuccessMessage(''), 3000);
+  }, [currentUser, editingServiceAccountId, resetServiceAccountForm, serviceAccountFormData, t.saved, t.updated]);
+
   const handleRenewClick = (subscription: Subscription) => {
     const newStartDate = subscription.endDate;
     const currentDuration = subscription.duration || 'monthly';
@@ -905,46 +1130,76 @@ function App() {
     }, subscription.service));
 
     setEditingId(subscription.id);
-    window.scrollTo(0, 0);
+    setIsSubscriberModalOpen(true);
   };
 
   const filteredSubscriptions = useMemo(() => {
     return subscriptions.filter(sub => {
       const status = getStatus(sub.endDate);
+      const contactHealth = getContactHealth(sub);
 
       if (showOnlyRenewals && !status.needsRenewal) {
+        return false;
+      }
+
+      if (subscriberQuickFilter === 'expiringSoon' && status.className !== 'badge-warning') {
+        return false;
+      }
+
+      if (subscriberQuickFilter === 'expired' && status.className !== 'badge-danger') {
+        return false;
+      }
+
+      if (subscriberQuickFilter === 'missingEmail' && sub.email.trim()) {
+        return false;
+      }
+
+      if (subscriberQuickFilter === 'missingWhatsapp' && sub.whatsapp.trim()) {
+        return false;
+      }
+
+      if (subscriberQuickFilter === 'missingContact' && contactHealth !== 'missing') {
         return false;
       }
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
 
-        return [sub.name, sub.email, sub.whatsapp].some((value) => readSearchableValue(value).includes(query));
+        return [sub.name, sub.email, sub.whatsapp, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
       }
 
       return true;
     });
-  }, [getStatus, searchQuery, showOnlyRenewals, subscriptions]);
+  }, [getStatus, searchQuery, showOnlyRenewals, subscriberQuickFilter, subscriptions]);
 
   const filteredServiceAccounts = useMemo(() => {
-    if (!serviceAccountSearchQuery.trim()) {
-      return serviceAccounts;
-    }
-
     const query = serviceAccountSearchQuery.toLowerCase();
 
     return serviceAccounts.filter((account) => {
       const linkedSubscriber = subscriptions.find((sub) => sub.id === account.subscriberSubscriptionId);
 
+      if (serviceAccountQuickFilter === 'linked' && !linkedSubscriber) {
+        return false;
+      }
+
+      if (serviceAccountQuickFilter === 'unlinked' && linkedSubscriber) {
+        return false;
+      }
+
+      if (!serviceAccountSearchQuery.trim()) {
+        return true;
+      }
+
       return [
         account.service,
         account.subscriptionEmail,
+        account.mailPassword,
         linkedSubscriber?.name,
         linkedSubscriber?.email,
         linkedSubscriber?.whatsapp,
       ].some((value) => readSearchableValue(value).includes(query));
     });
-  }, [serviceAccountSearchQuery, serviceAccounts, subscriptions]);
+  }, [serviceAccountQuickFilter, serviceAccountSearchQuery, serviceAccounts, subscriptions]);
 
   const subscriberLookupResults = useMemo(() => {
     const query = subscriberLookupQuery.trim().toLowerCase();
@@ -957,8 +1212,26 @@ function App() {
         .some((value) => readSearchableValue(value).includes(query));
     });
 
+    candidates.sort((left, right) => {
+      const leftServiceMatch = Number(left.service === serviceAccountFormData.service);
+      const rightServiceMatch = Number(right.service === serviceAccountFormData.service);
+
+      if (leftServiceMatch !== rightServiceMatch) {
+        return rightServiceMatch - leftServiceMatch;
+      }
+
+      const leftStatusPriority = getStatus(left.endDate).needsRenewal ? 0 : 1;
+      const rightStatusPriority = getStatus(right.endDate).needsRenewal ? 0 : 1;
+
+      if (leftStatusPriority !== rightStatusPriority) {
+        return rightStatusPriority - leftStatusPriority;
+      }
+
+      return left.name.localeCompare(right.name);
+    });
+
     return candidates.slice(0, 8);
-  }, [subscriberLookupQuery, subscriptions]);
+  }, [getStatus, serviceAccountFormData.service, subscriberLookupQuery, subscriptions]);
 
   const analytics = useMemo<AnalyticsSummary>(() => {
     const from = new Date(statsFromDate);
@@ -1061,6 +1334,199 @@ function App() {
     setSuccessMessage(lang === 'ar' ? 'تم حذف المستخدم' : 'User deleted successfully');
     setTimeout(() => setSuccessMessage(''), 3000);
   };
+
+  const locale = lang === 'ar' ? 'ar-EG' : 'en-US';
+  const subscriberFormContactHealth = getContactHealth(formData);
+  const linkedSubscriberForForm = subscriptionsById.get(serviceAccountFormData.subscriberSubscriptionId ?? -1);
+
+  const renderSubscriberForm = (mode: 'create' | 'edit') => (
+    <form onSubmit={(e) => { e.preventDefault(); void submitSubscriptionForm(); }} className="admin-form">
+      <div className="form-section">
+        <div className="form-section-header">
+          <h3 className="section-title">{mode === 'edit' ? t.editSubscriber : t.createSubscriber}</h3>
+          {mode === 'edit' && (
+            <button type="button" onClick={resetForm} className="btn-secondary modal-close-inline">{t.close}</button>
+          )}
+        </div>
+        <div className="form-row">
+          <div className="input-field-group">
+            <label>{t.service}</label>
+            <select value={formData.service} onChange={e => {
+              const newSvc = e.target.value;
+              setFormData(sanitizeFormDataForService({ ...formData, category: SERVICE_CATEGORIES[newSvc] || '' }, newSvc));
+            }} required>
+              {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="input-field-group">
+            <label>{t.category}</label>
+            <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+          </div>
+          <div className="input-field-group">
+            <label>{t.duration}</label>
+            <select value={formData.duration || 'monthly'} onChange={e => {
+              const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
+              if (formData.startDate) {
+                const newEnd = calculateEndDate(formData.startDate, dur);
+                setFormData({ ...formData, duration: dur, endDate: newEnd });
+              } else {
+                setFormData({ ...formData, duration: dur });
+              }
+            }} required>
+              <option value="monthly">{t.monthly}</option>
+              <option value="quarterly">{t.quarterly}</option>
+              <option value="yearly">{t.yearly}</option>
+            </select>
+          </div>
+        </div>
+        <div className="form-row" style={{ marginTop: '1.5rem' }}>
+          <div className="input-field-group">
+            <label>{t.startDate}</label>
+            <input type="date" value={formData.startDate} onChange={e => {
+              const strt = e.target.value;
+              const dur = formData.duration || 'monthly';
+              if (strt) {
+                setFormData({ ...formData, startDate: strt, endDate: calculateEndDate(strt, dur) });
+              } else {
+                setFormData({ ...formData, startDate: strt });
+              }
+            }} required />
+          </div>
+          <div className="input-field-group">
+            <label>{t.endDate}</label>
+            <div className="calculated-label">{formatDateDisplay(formData.endDate)}</div>
+          </div>
+          <div className="input-field-group">
+            <label>{t.workspace}</label>
+            <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({ ...formData, workspace: e.target.value })} />
+          </div>
+          <div className="input-field-group">
+            <label>{t.amount}</label>
+            <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({ ...formData, payment: Number(e.target.value) })} required />
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <h3 className="section-title">{t.subscriberDetail}</h3>
+        <div className="form-row">
+          <div className="input-field-group">
+            <label>{t.name}</label>
+            <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+          </div>
+          <div className="input-field-group">
+            <label>{t.email}</label>
+            <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+          </div>
+          <div className="input-field-group">
+            <label>{t.whatsapp}</label>
+            <div className="phone-field-row">
+              <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })}>
+                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+              </select>
+              <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} />
+            </div>
+          </div>
+          <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
+            <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{mode === 'edit' ? t.update : t.add}</button>
+            {mode === 'edit' && (
+              <button type="button" onClick={resetForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
+            )}
+          </div>
+        </div>
+        <div className={`quality-hint quality-${subscriberFormContactHealth}`}>
+          <strong>{subscriberFormContactHealth === 'complete' ? t.contactComplete : subscriberFormContactHealth === 'partial' ? t.contactPartial : t.contactMissing}</strong>
+          <span>{subscriberFormContactHealth === 'missing' ? t.contactMissingHint : ''}</span>
+        </div>
+      </div>
+    </form>
+  );
+
+  const renderServiceAccountForm = (mode: 'create' | 'edit') => (
+    <form onSubmit={(e) => { e.preventDefault(); void submitServiceAccountForm(); }} className="admin-form">
+      <div className="form-section">
+        <div className="form-section-header">
+          <h3 className="section-title">{mode === 'edit' ? t.editServiceAccount : t.createServiceAccount}</h3>
+          {mode === 'edit' && (
+            <button type="button" onClick={resetServiceAccountForm} className="btn-secondary modal-close-inline">{t.close}</button>
+          )}
+        </div>
+        <div className="form-row">
+          <div className="input-field-group">
+            <label>{t.service}</label>
+            <select value={serviceAccountFormData.service} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, service: e.target.value })} required>
+              {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+          <div className="input-field-group">
+            <label>{t.subscriptionEmail}</label>
+            <input type="email" placeholder={t.subscriptionEmail} value={serviceAccountFormData.subscriptionEmail} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, subscriptionEmail: e.target.value })} required />
+          </div>
+          <div className="input-field-group">
+            <label>{t.servicePassword}</label>
+            <input type="text" placeholder={t.servicePassword} value={serviceAccountFormData.servicePassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, servicePassword: e.target.value })} required />
+          </div>
+        </div>
+        <div className="form-row" style={{ marginTop: '1.5rem' }}>
+          <div className="input-field-group">
+            <label>{t.mailPassword}</label>
+            <input type="text" placeholder={t.mailPassword} value={serviceAccountFormData.mailPassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, mailPassword: e.target.value })} required />
+          </div>
+          <div className="input-field-group">
+            <label>{t.serviceAccountTwoFactorSecret}</label>
+            <input type="text" placeholder={t.serviceAccountTwoFactorSecret} value={serviceAccountTwoFactorSecret} onChange={e => setServiceAccountTwoFactorSecret(e.target.value)} />
+            <small className="help-text" style={{ marginTop: '0.35rem' }}>{t.serviceAccountTwoFactorHint}</small>
+            <button type="button" className="btn-secondary" style={{ marginTop: '0.5rem' }} onClick={() => {
+              setTwoFactorSecret(serviceAccountTwoFactorSecret);
+              setCurrentView('twoFactorTool');
+              window.scrollTo(0, 0);
+            }}>{t.generateCode}</button>
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section">
+        <h3 className="section-title">{t.recommendedMatches}</h3>
+        <div className="form-row">
+          <div className="input-field-group" style={{ flex: 2 }}>
+            <label>{t.searchSubscriber}</label>
+            <input type="text" placeholder={t.searchSubscriber} value={subscriberLookupQuery} onChange={e => setSubscriberLookupQuery(e.target.value)} />
+          </div>
+          <div className="input-field-group" style={{ flex: 1.5 }}>
+            <label>{t.linkedSubscriber}</label>
+            <div className="calculated-label" style={{ minHeight: '50px', display: 'flex', alignItems: 'center' }}>
+              {linkedSubscriberForForm ? `${linkedSubscriberForForm.name} - ${linkedSubscriberForForm.service}` : t.noSubscriberLinked}
+            </div>
+          </div>
+          <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
+            <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{mode === 'edit' ? t.update : t.add}</button>
+            {mode === 'edit' && (
+              <button type="button" onClick={resetServiceAccountForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
+            )}
+          </div>
+        </div>
+
+        <div className="subscriber-search-grid">
+          {subscriberLookupResults.map((subscription) => (
+            <button
+              key={subscription.id}
+              type="button"
+              className={`subscriber-search-card ${serviceAccountFormData.subscriberSubscriptionId === subscription.id ? 'selected' : ''}`}
+              onClick={() => {
+                setServiceAccountFormData({ ...serviceAccountFormData, subscriberSubscriptionId: subscription.id });
+                setSubscriberLookupQuery(`${subscription.name} - ${subscription.service}`);
+              }}
+            >
+              <strong>{subscription.name}</strong>
+              <span>{subscription.service}</span>
+              <small>{subscription.service === serviceAccountFormData.service ? t.serviceMatched : subscription.service}</small>
+              <small>{subscription.email || (subscription.whatsapp ? `+${subscription.countryCode} ${subscription.whatsapp}` : t.noSubscriberLinked)}</small>
+            </button>
+          ))}
+        </div>
+      </div>
+    </form>
+  );
 
   return (
     <div className={`app-layout ${theme}-theme ${!isLoggedIn || (userProfile?.status === 'pending' && userProfile?.role !== 'admin') ? 'is-login-page' : ''}`}>
@@ -1256,162 +1722,122 @@ function App() {
                     </button>
                   </div>
 
+                  <div className="toolbar-panel">
+                    <div className="filter-group">
+                      <span className="toolbar-label">{t.quickFilters}</span>
+                      {(['all', 'expiringSoon', 'expired', 'missingEmail', 'missingWhatsapp', 'missingContact'] as SubscriberQuickFilter[]).map((filter) => (
+                        <button
+                          key={filter}
+                          type="button"
+                          className={`filter-chip ${subscriberQuickFilter === filter ? 'active' : ''}`}
+                          onClick={() => setSubscriberQuickFilter(filter)}
+                        >
+                          {filter === 'all' ? t.clearAll : filter === 'expiringSoon' ? t.expiringSoon : filter === 'expired' ? t.expired : filter === 'missingEmail' ? t.missingEmail : filter === 'missingWhatsapp' ? t.missingWhatsapp : t.missingContact}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="filter-group">
+                      <span className="toolbar-label">{t.tableDensity}</span>
+                      <button type="button" className={`filter-chip ${subscriberDensity === 'comfortable' ? 'active' : ''}`} onClick={() => setSubscriberDensity('comfortable')}>{t.comfortable}</button>
+                      <button type="button" className={`filter-chip ${subscriberDensity === 'compact' ? 'active' : ''}`} onClick={() => setSubscriberDensity('compact')}>{t.compact}</button>
+                    </div>
+                    <div className="filter-group filter-checks">
+                      <span className="toolbar-label">{t.visibleColumns}</span>
+                      <label><input type="checkbox" checked={subscriberColumns.category} onChange={() => setSubscriberColumns((current) => ({ ...current, category: !current.category }))} /> {t.category}</label>
+                      <label><input type="checkbox" checked={subscriberColumns.contact} onChange={() => setSubscriberColumns((current) => ({ ...current, contact: !current.contact }))} /> {t.contactColumn}</label>
+                      <label><input type="checkbox" checked={subscriberColumns.workspace} onChange={() => setSubscriberColumns((current) => ({ ...current, workspace: !current.workspace }))} /> {t.workspace}</label>
+                      <label><input type="checkbox" checked={subscriberColumns.payment} onChange={() => setSubscriberColumns((current) => ({ ...current, payment: !current.payment }))} /> {t.amount}</label>
+                      <label><input type="checkbox" checked={subscriberColumns.activity} onChange={() => setSubscriberColumns((current) => ({ ...current, activity: !current.activity }))} /> {t.activity}</label>
+                    </div>
+                  </div>
+
                   {successMessage && <div className="success-banner" style={{ marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
 
                   <div className="main-content-card">
-                    <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                      <form onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!currentUser) {
-                          return;
-                        }
-                        const preparedFormData = sanitizeFormDataForService(formData, formData.service);
-                        if (editingId) { 
-                          await supabase.from('subscriptions').update(toDbSubscriptionPayload(preparedFormData)).eq('id', editingId);
-                          setSuccessMessage(t.updated); 
-                        }
-                        else { 
-                          await supabase.from('subscriptions').insert([{ ...toDbSubscriptionPayload(preparedFormData), user_id: currentUser.id, createdat: new Date().toISOString() }]);
-                          setSuccessMessage(t.saved); 
-                        }
-                        resetForm();
-                        setTimeout(() => setSuccessMessage(''), 3000);
-                      }} className="admin-form">
+                    {!isSubscriberModalOpen && (
+                      <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                        {renderSubscriberForm('create')}
+                      </div>
+                    )}
 
-                        <div className="form-section">
-                          <h3 className="section-title">{t.subDetail}</h3>
-                          <div className="form-row">
-                            <div className="input-field-group">
-                              <label>{t.service}</label>
-                              <select value={formData.service} onChange={e => {
-                                const newSvc = e.target.value;
-                                setFormData(sanitizeFormDataForService({ ...formData, category: SERVICE_CATEGORIES[newSvc] || '' }, newSvc));
-                              }} required>
-                                {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                              </select>
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.category}</label>
-                              <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })} />
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.duration}</label>
-                              <select value={formData.duration || 'monthly'} onChange={e => {
-                                const dur = e.target.value as 'monthly' | 'quarterly' | 'yearly';
-                                if (formData.startDate) {
-                                  const newEnd = calculateEndDate(formData.startDate, dur);
-                                  setFormData({ ...formData, duration: dur, endDate: newEnd });
-                                } else setFormData({ ...formData, duration: dur });
-                              }} required>
-                                <option value="monthly">{t.monthly}</option>
-                                <option value="quarterly">{t.quarterly}</option>
-                                <option value="yearly">{t.yearly}</option>
-                              </select>
-                            </div>
-                          </div>
-                          <div className="form-row" style={{ marginTop: '1.5rem' }}>
-                            <div className="input-field-group">
-                              <label>{t.startDate}</label>
-                              <input type="date" value={formData.startDate} onChange={e => {
-                                const strt = e.target.value;
-                                const dur = formData.duration || 'monthly';
-                                if (strt) setFormData({ ...formData, startDate: strt, endDate: calculateEndDate(strt, dur) });
-                                else setFormData({ ...formData, startDate: strt });
-                              }} required />
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.endDate}</label>
-                              <div className="calculated-label">{formatDateDisplay(formData.endDate)}</div>
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.workspace}</label>
-                              <input type="text" placeholder={t.workspace} value={formData.workspace} onChange={e => setFormData({ ...formData, workspace: e.target.value })} />
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.amount}</label>
-                              <input type="number" placeholder={t.amount} value={formData.payment || ''} onChange={e => setFormData({ ...formData, payment: Number(e.target.value) })} required />
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="form-section">
-                          <h3 className="section-title">{t.subscriberDetail}</h3>
-                          <div className="form-row">
-                            <div className="input-field-group">
-                              <label>{t.name}</label>
-                              <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
-                            </div>
-                            {activeProfileFields.email && (
-                              <div className="input-field-group">
-                                <label>{t.email}</label>
-                                <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
-                              </div>
-                            )}
-                            {activeProfileFields.whatsapp && (
-                              <div className="input-field-group">
-                                <label>{t.whatsapp}</label>
-                                <div className="phone-field-row">
-                                  <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })} required>
-                                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                                  </select>
-                                  <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} required />
-                                </div>
-                              </div>
-                            )}
-                            <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
-                              <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
-                              {editingId && (
-                                <button type="button" onClick={resetForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </form>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="admin-table">
+                    <div className={`table-responsive ${subscriberDensity === 'compact' ? 'compact-table-wrap' : ''}`}>
+                      <table className={`admin-table ${subscriberDensity === 'compact' ? 'compact-table' : ''}`}>
                         <thead>
                           <tr>
                             <th>ID</th>
                             <th>{t.service}</th>
                             <th>{t.name}</th>
+                            {subscriberColumns.contact && <th>{t.contactColumn}</th>}
+                            {subscriberColumns.workspace && <th>{t.workspace}</th>}
+                            {subscriberColumns.payment && <th>{t.amount}</th>}
                             <th>{t.endDate}</th>
+                            {subscriberColumns.activity && <th>{t.activity}</th>}
                             <th style={{ textAlign: 'center' }}>{t.actions}</th>
                           </tr>
                         </thead>
                         <tbody>
-                          {filteredSubscriptions.map(s => (
-                            <tr key={s.id}>
-                              <td style={{ fontWeight: 600 }} className="inline-muted">#{s.id}</td>
-                              <td>
-                                <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
-                                <div className="subscriber-meta">{s.category || SERVICE_CATEGORIES[s.service]}</div>
-                              </td>
-                              <td>
-                                <div style={{ fontWeight: 600 }}>{s.name}</div>
-                                <div className="subscriber-meta">{s.email || (s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-')}</div>
-                              </td>
-                              <td>
-                                <span className={`badge ${getStatus(s.endDate).className}`}>{formatDateDisplay(s.endDate)}</span>
-                                <div className="subscriber-meta" style={{ marginTop: '4px', fontSize: '0.8rem' }}>
-                                  {s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}
-                                </div>
-                              </td>
-                              <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                <div className="subscriber-actions">
-                                  {s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
-                                  <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
-                                  <button onClick={() => { setFormData(sanitizeFormDataForService({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }, s.service)); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
-                                  <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
-                                </div>
-                              </td>
-                            </tr>
-                          ))}
+                          {filteredSubscriptions.map(s => {
+                            const status = getStatus(s.endDate);
+                            const contactHealth = getContactHealth(s);
+
+                            return (
+                              <tr key={s.id}>
+                                <td style={{ fontWeight: 600 }} className="inline-muted">#{s.id}</td>
+                                <td>
+                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
+                                  {subscriberColumns.category && <div className="subscriber-meta">{s.category || SERVICE_CATEGORIES[s.service]}</div>}
+                                  <span className={`badge ${status.className}`}>{status.label}</span>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{s.name}</div>
+                                  <div className="subscriber-meta">{s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly}</div>
+                                </td>
+                                {subscriberColumns.contact && (
+                                  <td>
+                                    <div className="contact-stack">
+                                      <div>{s.email || '-'}</div>
+                                      <div className="subscriber-meta">{s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-'}</div>
+                                      <span className={`badge ${contactHealth === 'complete' ? 'badge-success' : contactHealth === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{contactHealth === 'complete' ? t.contactComplete : contactHealth === 'partial' ? t.contactPartial : t.contactMissing}</span>
+                                    </div>
+                                  </td>
+                                )}
+                                {subscriberColumns.workspace && <td>{s.workspace || '-'}</td>}
+                                {subscriberColumns.payment && <td>{s.payment || 0}</td>}
+                                <td>
+                                  <div style={{ fontWeight: 700 }}>{formatDateDisplay(s.endDate)}</div>
+                                  <div className="subscriber-meta">{status.label}</div>
+                                </td>
+                                {subscriberColumns.activity && (
+                                  <td>
+                                    <div style={{ fontWeight: 600 }}>{formatDateTimeDisplay(s.updatedAt ?? s.createdAt, locale)}</div>
+                                    <div className="subscriber-meta">{getActorName(s.updatedBy ?? s.user_id)}</div>
+                                  </td>
+                                )}
+                                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <div className="subscriber-actions">
+                                    {s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
+                                    <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
+                                    <button onClick={() => openSubscriptionEditor(s)} title={t.update}>✏️</button>
+                                    <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
                   </div>
+
+                  {isSubscriberModalOpen && (
+                    <div className="modal-overlay" onClick={resetForm}>
+                      <div className="modal-card main-content-card" onClick={(event) => event.stopPropagation()}>
+                        <div style={{ padding: '2rem' }}>
+                          {renderSubscriberForm('edit')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1435,169 +1861,89 @@ function App() {
                     </div>
                   </div>
 
+                  <div className="toolbar-panel">
+                    <div className="filter-group">
+                      <span className="toolbar-label">{t.quickFilters}</span>
+                      {(['all', 'linked', 'unlinked'] as ServiceAccountQuickFilter[]).map((filter) => (
+                        <button key={filter} type="button" className={`filter-chip ${serviceAccountQuickFilter === filter ? 'active' : ''}`} onClick={() => setServiceAccountQuickFilter(filter)}>
+                          {filter === 'all' ? t.clearAll : filter === 'linked' ? t.linkedOnly : t.unlinkedOnly}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="filter-group">
+                      <span className="toolbar-label">{t.tableDensity}</span>
+                      <button type="button" className={`filter-chip ${serviceAccountDensity === 'comfortable' ? 'active' : ''}`} onClick={() => setServiceAccountDensity('comfortable')}>{t.comfortable}</button>
+                      <button type="button" className={`filter-chip ${serviceAccountDensity === 'compact' ? 'active' : ''}`} onClick={() => setServiceAccountDensity('compact')}>{t.compact}</button>
+                    </div>
+                    <div className="filter-group filter-checks">
+                      <span className="toolbar-label">{t.visibleColumns}</span>
+                      <label><input type="checkbox" checked={serviceAccountColumns.passwords} onChange={() => setServiceAccountColumns((current) => ({ ...current, passwords: !current.passwords }))} /> {t.passwords}</label>
+                      <label><input type="checkbox" checked={serviceAccountColumns.linkedSubscriber} onChange={() => setServiceAccountColumns((current) => ({ ...current, linkedSubscriber: !current.linkedSubscriber }))} /> {t.linkedSubscriber}</label>
+                      <label><input type="checkbox" checked={serviceAccountColumns.activity} onChange={() => setServiceAccountColumns((current) => ({ ...current, activity: !current.activity }))} /> {t.activity}</label>
+                    </div>
+                  </div>
+
                   {successMessage && <div className="success-banner" style={{ marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
 
                   <div className="main-content-card">
-                    <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                      <form onSubmit={async (e) => {
-                        e.preventDefault();
-                        if (!currentUser) {
-                          return;
-                        }
+                    {!isServiceAccountModalOpen && (
+                      <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                        {renderServiceAccountForm('create')}
+                      </div>
+                    )}
 
-                        if (editingServiceAccountId) {
-                          await supabase.from('service_accounts').update(toDbServiceAccountPayload(serviceAccountFormData)).eq('id', editingServiceAccountId);
-                          setSuccessMessage(t.updated);
-                        } else {
-                          await supabase.from('service_accounts').insert([{ ...toDbServiceAccountPayload(serviceAccountFormData), user_id: currentUser.id, createdat: new Date().toISOString() }]);
-                          setSuccessMessage(t.saved);
-                        }
-
-                        resetServiceAccountForm();
-                        setTimeout(() => setSuccessMessage(''), 3000);
-                      }} className="admin-form">
-                        <div className="form-section">
-                          <h3 className="section-title">{t.serviceAccounts}</h3>
-                          <div className="form-row">
-                            <div className="input-field-group">
-                              <label>{t.service}</label>
-                              <select value={serviceAccountFormData.service} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, service: e.target.value })} required>
-                                {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-                              </select>
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.subscriptionEmail}</label>
-                              <input type="email" placeholder={t.subscriptionEmail} value={serviceAccountFormData.subscriptionEmail} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, subscriptionEmail: e.target.value })} required />
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.servicePassword}</label>
-                              <input type="text" placeholder={t.servicePassword} value={serviceAccountFormData.servicePassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, servicePassword: e.target.value })} required />
-                            </div>
-                          </div>
-                          <div className="form-row" style={{ marginTop: '1.5rem' }}>
-                            <div className="input-field-group">
-                              <label>{t.mailPassword}</label>
-                              <input type="text" placeholder={t.mailPassword} value={serviceAccountFormData.mailPassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, mailPassword: e.target.value })} required />
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.serviceAccountTwoFactorSecret}</label>
-                          <input
-                                type="text"
-                                placeholder={t.serviceAccountTwoFactorSecret}
-                                value={serviceAccountTwoFactorSecret}
-                                onChange={e => setServiceAccountTwoFactorSecret(e.target.value)}
-                              />
-                              <small className="help-text" style={{ marginTop: '0.35rem' }}>{t.serviceAccountTwoFactorHint}</small>
-                              <button
-                                type="button"
-                                className="btn-secondary"
-                                style={{ marginTop: '0.5rem' }}
-                                onClick={() => {
-                                  setTwoFactorSecret(serviceAccountTwoFactorSecret);
-                                  setCurrentView('twoFactorTool');
-                                  window.scrollTo(0, 0);
-                                }}
-                              >
-                                {t.generateCode}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="form-section">
-                          <h3 className="section-title">{t.linkedSubscriber}</h3>
-                          <div className="form-row">
-                            <div className="input-field-group" style={{ flex: 2 }}>
-                              <label>{t.searchSubscriber}</label>
-                              <input type="text" placeholder={t.searchSubscriber} value={subscriberLookupQuery} onChange={e => setSubscriberLookupQuery(e.target.value)} />
-                            </div>
-                            <div className="input-field-group" style={{ flex: 1.5 }}>
-                              <label>{t.linkedSubscriber}</label>
-                              <div className="calculated-label" style={{ minHeight: '50px', display: 'flex', alignItems: 'center' }}>
-                                {serviceAccountFormData.subscriberSubscriptionId
-                                  ? (() => {
-                                      const linkedSubscriber = subscriptions.find((subscription) => subscription.id === serviceAccountFormData.subscriberSubscriptionId);
-                                      return linkedSubscriber
-                                        ? `${linkedSubscriber.name} - ${linkedSubscriber.service}`
-                                        : t.noSubscriberLinked;
-                                    })()
-                                  : t.noSubscriberLinked}
-                              </div>
-                            </div>
-                            <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
-                              <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingServiceAccountId ? t.update : t.add}</button>
-                              {editingServiceAccountId && (
-                                <button type="button" onClick={resetServiceAccountForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="subscriber-search-grid">
-                            {subscriberLookupResults.map((subscription) => (
-                              <button
-                                key={subscription.id}
-                                type="button"
-                                className={`subscriber-search-card ${serviceAccountFormData.subscriberSubscriptionId === subscription.id ? 'selected' : ''}`}
-                                onClick={() => {
-                                  setServiceAccountFormData({ ...serviceAccountFormData, subscriberSubscriptionId: subscription.id });
-                                  setSubscriberLookupQuery(`${subscription.name} - ${subscription.service}`);
-                                }}
-                              >
-                                <strong>{subscription.name}</strong>
-                                <span>{subscription.service}</span>
-                                <small>{subscription.email || (subscription.whatsapp ? `+${subscription.countryCode} ${subscription.whatsapp}` : t.noSubscriberLinked)}</small>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      </form>
-                    </div>
-
-                    <div className="table-responsive">
-                      <table className="admin-table">
+                    <div className={`table-responsive ${serviceAccountDensity === 'compact' ? 'compact-table-wrap' : ''}`}>
+                      <table className={`admin-table ${serviceAccountDensity === 'compact' ? 'compact-table' : ''}`}>
                         <thead>
                           <tr>
                             <th>ID</th>
                             <th>{t.service}</th>
                             <th>{t.subscriptionEmail}</th>
-                            <th>{t.linkedSubscriber}</th>
+                            {serviceAccountColumns.passwords && <th>{t.passwords}</th>}
+                            {serviceAccountColumns.linkedSubscriber && <th>{t.linkedSubscriber}</th>}
+                            {serviceAccountColumns.activity && <th>{t.activity}</th>}
                             <th>{t.actions}</th>
                           </tr>
                         </thead>
                         <tbody>
                           {filteredServiceAccounts.map((account) => {
-                            const linkedSubscriber = subscriptions.find((subscription) => subscription.id === account.subscriberSubscriptionId);
+                            const linkedSubscriber = subscriptionsById.get(account.subscriberSubscriptionId ?? -1);
 
                             return (
                               <tr key={account.id}>
                                 <td style={{ fontWeight: 600 }} className="inline-muted">#{account.id}</td>
                                 <td>
                                   <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{account.service}</div>
-                                  <div className="subscriber-meta">{account.createdAt ? new Date(account.createdAt).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US') : '-'}</div>
+                                  <span className={`badge ${linkedSubscriber ? 'badge-success' : 'badge-warning'}`}>{linkedSubscriber ? t.linked : t.unlinked}</span>
                                 </td>
                                 <td>
                                   <div style={{ fontWeight: 600 }}>{account.subscriptionEmail}</div>
-                                  <div className="subscriber-meta">{linkedSubscriber ? linkedSubscriber.service : '-'}</div>
+                                  <div className="subscriber-meta">{account.servicePassword}</div>
                                 </td>
-                                <td>
-                                  <div style={{ fontWeight: 600 }}>{linkedSubscriber?.name || t.noSubscriberLinked}</div>
-                                  <div className="subscriber-meta">{linkedSubscriber ? `${linkedSubscriber.service} - #${linkedSubscriber.id}` : '-'}</div>
-                                </td>
+                                {serviceAccountColumns.passwords && (
+                                  <td>
+                                    <div style={{ fontWeight: 600 }}>{account.servicePassword}</div>
+                                    <div className="subscriber-meta">{account.mailPassword}</div>
+                                  </td>
+                                )}
+                                {serviceAccountColumns.linkedSubscriber && (
+                                  <td>
+                                    <div style={{ fontWeight: 600 }}>{linkedSubscriber?.name || t.noSubscriberLinked}</div>
+                                    <div className="subscriber-meta">{linkedSubscriber ? `${linkedSubscriber.service} - #${linkedSubscriber.id}` : '-'}</div>
+                                  </td>
+                                )}
+                                {serviceAccountColumns.activity && (
+                                  <td>
+                                    <div style={{ fontWeight: 600 }}>{formatDateTimeDisplay(account.updatedAt ?? account.createdAt, locale)}</div>
+                                    <div className="subscriber-meta">{getActorName(account.updatedBy ?? account.user_id)}</div>
+                                  </td>
+                                )}
                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <div className="subscriber-actions">
-                                    <button onClick={() => {
-                                      setServiceAccountFormData({
-                                        service: account.service,
-                                        subscriptionEmail: account.subscriptionEmail,
-                                        servicePassword: account.servicePassword,
-                                        mailPassword: account.mailPassword,
-                                        subscriberSubscriptionId: account.subscriberSubscriptionId,
-                                      });
-                                      setServiceAccountTwoFactorSecret('');
-                                      setEditingServiceAccountId(account.id);
-                                      setSubscriberLookupQuery(linkedSubscriber ? `${linkedSubscriber.name} - ${linkedSubscriber.service}` : '');
-                                      window.scrollTo(0, 0);
-                                    }} title={t.update}>✏️</button>
+                                    <button onClick={() => { void copyText(account.subscriptionEmail); }} title={t.subscriptionEmail}>@</button>
+                                    <button onClick={() => { void copyText(account.servicePassword); }} title={t.servicePassword}>PW</button>
+                                    <button onClick={() => { void copyText(account.mailPassword); }} title={t.mailPassword}>MAIL</button>
+                                    <button onClick={() => openServiceAccountEditor(account)} title={t.update}>✏️</button>
                                     <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('service_accounts').delete().eq('id', account.id); }} title={t.logout}>🗑️</button>
                                   </div>
                                 </td>
@@ -1608,6 +1954,16 @@ function App() {
                       </table>
                     </div>
                   </div>
+
+                  {isServiceAccountModalOpen && (
+                    <div className="modal-overlay" onClick={resetServiceAccountForm}>
+                      <div className="modal-card main-content-card" onClick={(event) => event.stopPropagation()}>
+                        <div style={{ padding: '2rem' }}>
+                          {renderServiceAccountForm('edit')}
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 

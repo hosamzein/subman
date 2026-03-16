@@ -74,13 +74,22 @@ create table if not exists public.service_accounts (
   service_password text not null default '',
   mail_password text not null default '',
   subscriber_subscription_id bigint references public.subscriptions (id) on delete set null,
-  createdat timestamptz not null default now()
+  createdat timestamptz not null default now(),
+  updatedat timestamptz,
+  updatedby uuid references public.profiles (id) on delete set null
 );
 
 do $$
 begin
   alter table public.service_accounts drop column if exists two_factor_secret;
   alter table public.service_accounts drop column if exists two_factor_code;
+  alter table public.subscriptions add column if not exists updatedat timestamptz;
+  alter table public.subscriptions add column if not exists updatedby uuid references public.profiles (id) on delete set null;
+  alter table public.service_accounts add column if not exists updatedat timestamptz;
+  alter table public.service_accounts add column if not exists updatedby uuid references public.profiles (id) on delete set null;
+
+  update public.subscriptions set updatedat = createdat where updatedat is null;
+  update public.service_accounts set updatedat = createdat where updatedat is null;
 
   if not exists (
     select 1 from pg_constraint where conname = 'profiles_role_check'
