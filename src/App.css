@@ -823,6 +823,59 @@ body::before {
   color: var(--text-muted);
 }
 
+.two-factor-card {
+  padding: 2rem;
+}
+
+.two-factor-row {
+  align-items: stretch;
+}
+
+.two-factor-actions {
+  justify-content: flex-end;
+}
+
+.two-factor-actions .btn-primary,
+.two-factor-actions .btn-secondary {
+  width: 100%;
+}
+
+.two-factor-output {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1rem 0.5rem;
+  text-align: center;
+}
+
+.two-factor-code {
+  font-size: clamp(2.6rem, 6vw, 4.5rem);
+  font-weight: 900;
+  letter-spacing: 0.24em;
+  color: var(--text-main);
+}
+
+.two-factor-meta {
+  color: var(--text-muted);
+  font-weight: 700;
+}
+
+.two-factor-error {
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: rgba(220, 38, 38, 0.1);
+  border: 1px solid rgba(220, 38, 38, 0.15);
+  color: #dc2626;
+  font-weight: 700;
+}
+
+.dark-theme .two-factor-error {
+  color: #fecaca;
+  background: rgba(220, 38, 38, 0.16);
+  border-color: rgba(248, 113, 113, 0.2);
+}
+
 .top-actions {
   display: flex;
   align-items: center;
@@ -1246,6 +1299,7 @@ body::before {
   .phone-field-row { flex-direction: column; direction: rtl; }
   .phone-field-row select { width: 100% !important; }
   .subscriber-search-grid { grid-template-columns: 1fr; }
+  .two-factor-code { letter-spacing: 0.14em; }
   .view-container { padding: 1.5rem 1rem; }
   .search-input-refined { font-size: 1rem; padding: 0.8rem 1.2rem; }
   .admin-table { min-width: 700px; /* Enable horizontal scroll on tiny screens */ }

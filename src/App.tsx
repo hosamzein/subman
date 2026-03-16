@@ -59,6 +59,7 @@ const translations = {
     dashboard: "لوحة البيانات",
     subscribers: "المشتركون",
     serviceAccounts: "حسابات الخدمات",
+    twoFactorTool: "أداة 2FA",
     notifications: "التنبيهات",
     access: "الصلاحيات",
     settings: "الإعدادات",
@@ -118,9 +119,23 @@ const translations = {
     subscriptionEmail: "بريد الاشتراك",
     servicePassword: "كلمة مرور الخدمة",
     mailPassword: "كلمة مرور البريد",
+    serviceAccountTwoFactorSecret: "2FA Secret للخدمة",
+    serviceAccountTwoFactorHint: "يستخدم للتوليد فقط داخل الواجهة ولا يتم حفظه",
     linkedSubscriber: "المشترك المرتبط",
     searchSubscriber: "ابحث عن مشترك بالاسم أو البريد أو الواتساب...",
     noSubscriberLinked: "لا يوجد مشترك مرتبط",
+    twoFactorGenerator: "مولد 2FA",
+    twoFactorIntro: "أدخل مفتاح Base32 لتوليد رمز TOTP مؤقت داخل المتصفح فقط بدون حفظ أي بيانات.",
+    twoFactorSecretLabel: "2FA Secret",
+    currentCode: "الرمز الحالي",
+    nextRefresh: "يتجدد خلال",
+    seconds: "ثانية",
+    generateCode: "توليد الرمز",
+    copyCode: "نسخ الرمز",
+    clear: "مسح",
+    secretRequired: "أدخل مفتاح 2FA أولاً",
+    invalidSecret: "المفتاح غير صالح. استخدم Base32 فقط.",
+    codeCopied: "تم نسخ الرمز",
     pendingTitle: "الحساب قيد المراجعة",
     pendingMsg: `حسابك قيد المراجعة حالياً من قبل الإدارة. يرجى مراجعة المسؤول عبر: ${SUPPORT_EMAIL}`,
     register: "تسجيل حساب جديد",
@@ -148,6 +163,7 @@ const translations = {
     dashboard: "Dashboard",
     subscribers: "Subscribers",
     serviceAccounts: "Service Accounts",
+    twoFactorTool: "2FA Tool",
     notifications: "Notifications",
     access: "Access Mgmt",
     settings: "Settings",
@@ -207,9 +223,23 @@ const translations = {
     subscriptionEmail: "Subscription Email",
     servicePassword: "Service Password",
     mailPassword: "Mail Password",
+    serviceAccountTwoFactorSecret: "Service 2FA Secret",
+    serviceAccountTwoFactorHint: "Used only for on-screen generation and is not saved",
     linkedSubscriber: "Linked Subscriber",
     searchSubscriber: "Search subscriber by name, email, or WhatsApp...",
     noSubscriberLinked: "No linked subscriber",
+    twoFactorGenerator: "2FA Generator",
+    twoFactorIntro: "Enter a Base32 secret to generate a temporary TOTP code in-browser only. Nothing is stored.",
+    twoFactorSecretLabel: "2FA Secret",
+    currentCode: "Current Code",
+    nextRefresh: "Refreshes in",
+    seconds: "seconds",
+    generateCode: "Generate Code",
+    copyCode: "Copy Code",
+    clear: "Clear",
+    secretRequired: "Enter a 2FA secret first",
+    invalidSecret: "Invalid secret. Use Base32 only.",
+    codeCopied: "Code copied",
     pendingTitle: "Account Pending",
     pendingMsg: `Your account is currently pending approval. Please contact the administrator at ${SUPPORT_EMAIL}`,
     register: "Register New Account",
@@ -232,7 +262,7 @@ const translations = {
 
 type Language = keyof typeof translations;
 type Theme = 'dark' | 'light';
-type View = 'login' | 'dashboard' | 'subscribers' | 'serviceAccounts' | 'users' | 'notifications' | 'settings';
+type View = 'login' | 'dashboard' | 'subscribers' | 'serviceAccounts' | 'twoFactorTool' | 'users' | 'notifications' | 'settings';
 
 type SubscriptionFormData = Pick<
   Subscription,
@@ -396,6 +426,60 @@ const calculateEndDate = (startDate: string, duration: SubscriptionDuration) => 
   return date.toISOString().split('T')[0];
 };
 
+const normalizeBase32Secret = (secret: string) => secret.replace(/\s+/g, '').toUpperCase();
+
+const decodeBase32 = (secret: string) => {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+  const normalized = normalizeBase32Secret(secret).replace(/=+$/g, '');
+
+  if (!normalized) {
+    return new Uint8Array();
+  }
+
+  let bits = '';
+
+  for (const char of normalized) {
+    const value = alphabet.indexOf(char);
+
+    if (value === -1) {
+      throw new Error('Invalid Base32 secret');
+    }
+
+    bits += value.toString(2).padStart(5, '0');
+  }
+
+  const bytes = new Uint8Array(Math.floor(bits.length / 8));
+
+  for (let index = 0; index < bytes.length; index += 1) {
+    bytes[index] = parseInt(bits.slice(index * 8, index * 8 + 8), 2);
+  }
+
+  return bytes;
+};
+
+const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
+  const keyBytes = decodeBase32(secret);
+
+  if (!keyBytes.length) {
+    throw new Error('Missing secret');
+  }
+
+  const counter = Math.floor(Date.now() / 1000 / period);
+  const buffer = new ArrayBuffer(8);
+  const view = new DataView(buffer);
+  view.setUint32(4, counter, false);
+
+  const cryptoKey = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-1' }, false, ['sign']);
+  const signature = new Uint8Array(await crypto.subtle.sign('HMAC', cryptoKey, buffer));
+  const offset = signature[signature.length - 1] & 0x0f;
+  const binary = ((signature[offset] & 0x7f) << 24)
+    | ((signature[offset + 1] & 0xff) << 16)
+    | ((signature[offset + 2] & 0xff) << 8)
+    | (signature[offset + 3] & 0xff);
+
+  return (binary % (10 ** digits)).toString().padStart(digits, '0');
+};
+
 const readSearchableValue = (value: string | null | undefined) => value?.toLowerCase() ?? '';
 
 const resolveAuthMethod = (providers: string[] | null | undefined): UserAuthMethod => {
@@ -464,6 +548,11 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [serviceAccountSearchQuery, setServiceAccountSearchQuery] = useState('');
   const [subscriberLookupQuery, setSubscriberLookupQuery] = useState('');
+  const [serviceAccountTwoFactorSecret, setServiceAccountTwoFactorSecret] = useState('');
+  const [twoFactorSecret, setTwoFactorSecret] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('');
+  const [twoFactorError, setTwoFactorError] = useState('');
+  const [twoFactorCountdown, setTwoFactorCountdown] = useState(30 - (Math.floor(Date.now() / 1000) % 30));
   const [showOnlyRenewals, setShowOnlyRenewals] = useState(false);
 
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
@@ -610,6 +699,14 @@ function App() {
   }, [currentUser, loadProfile]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      setTwoFactorCountdown(30 - (Math.floor(Date.now() / 1000) % 30));
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (!isLoggedIn || !currentUser || (userProfile?.status === 'pending' && userProfile.role !== 'admin')) {
       setSubscriptions([]);
       setServiceAccounts([]);
@@ -701,7 +798,51 @@ function App() {
     setServiceAccountFormData(createDefaultServiceAccountFormData());
     setEditingServiceAccountId(null);
     setSubscriberLookupQuery('');
+    setServiceAccountTwoFactorSecret('');
   };
+
+  const handleGenerateTwoFactorCode = useCallback(async () => {
+    const normalizedSecret = normalizeBase32Secret(twoFactorSecret);
+
+    if (!normalizedSecret) {
+      setTwoFactorCode('');
+      setTwoFactorError(t.secretRequired);
+      return;
+    }
+
+    try {
+      const code = await generateTotpCode(normalizedSecret);
+      setTwoFactorCode(code);
+      setTwoFactorError('');
+    } catch {
+      setTwoFactorCode('');
+      setTwoFactorError(t.invalidSecret);
+    }
+  }, [t.invalidSecret, t.secretRequired, twoFactorSecret]);
+
+  const handleCopyTwoFactorCode = useCallback(async () => {
+    if (!twoFactorCode) {
+      return;
+    }
+
+    await navigator.clipboard.writeText(twoFactorCode);
+    setSuccessMessage(t.codeCopied);
+    setTimeout(() => setSuccessMessage(''), 3000);
+  }, [t.codeCopied, twoFactorCode]);
+
+  const handleClearTwoFactorTool = useCallback(() => {
+    setTwoFactorSecret('');
+    setTwoFactorCode('');
+    setTwoFactorError('');
+  }, []);
+
+  useEffect(() => {
+    if (!twoFactorSecret.trim() || currentView !== 'twoFactorTool') {
+      return;
+    }
+
+    void handleGenerateTwoFactorCode();
+  }, [currentView, handleGenerateTwoFactorCode, twoFactorCountdown, twoFactorSecret]);
 
   const sendWhatsApp = (sub: Subscription) => {
     if (!sub.whatsapp) {
@@ -946,6 +1087,7 @@ function App() {
               <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title={t.dashboard}><span className="nav-glyph">◫</span></button>
               <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title={t.subscribers}><span className="nav-glyph">◎</span></button>
               <button onClick={() => setCurrentView('serviceAccounts')} className={currentView === 'serviceAccounts' ? 'active' : ''} title={t.serviceAccounts}><span className="nav-glyph">⌘</span></button>
+              <button onClick={() => setCurrentView('twoFactorTool')} className={currentView === 'twoFactorTool' ? 'active' : ''} title={t.twoFactorTool}><span className="nav-glyph">#</span></button>
               <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title={t.notifications}>
                 <span className="nav-glyph">◌</span> {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
               </button>
@@ -1319,6 +1461,16 @@ function App() {
                               <label>{t.mailPassword}</label>
                               <input type="text" placeholder={t.mailPassword} value={serviceAccountFormData.mailPassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, mailPassword: e.target.value })} required />
                             </div>
+                            <div className="input-field-group">
+                              <label>{t.serviceAccountTwoFactorSecret}</label>
+                              <input
+                                type="text"
+                                placeholder={t.serviceAccountTwoFactorSecret}
+                                value={serviceAccountTwoFactorSecret}
+                                onChange={e => setServiceAccountTwoFactorSecret(e.target.value)}
+                              />
+                              <small className="help-text" style={{ marginTop: '0.35rem' }}>{t.serviceAccountTwoFactorHint}</small>
+                            </div>
                           </div>
                         </div>
 
@@ -1411,6 +1563,7 @@ function App() {
                                         mailPassword: account.mailPassword,
                                         subscriberSubscriptionId: account.subscriberSubscriptionId,
                                       });
+                                      setServiceAccountTwoFactorSecret('');
                                       setEditingServiceAccountId(account.id);
                                       setSubscriberLookupQuery(linkedSubscriber ? `${linkedSubscriber.name} - ${linkedSubscriber.service}` : '');
                                       window.scrollTo(0, 0);
@@ -1423,6 +1576,44 @@ function App() {
                           })}
                         </tbody>
                       </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {currentView === 'twoFactorTool' && (
+                <div className="settings-view animate-fade">
+                  <h2 className="section-heading">{t.twoFactorGenerator}</h2>
+                  <p className="view-banner">{t.twoFactorIntro}</p>
+                  <div className="form-card two-factor-card">
+                    <div className="form-section">
+                      <div className="form-row two-factor-row">
+                        <div className="input-field-group" style={{ flex: 2 }}>
+                          <label>{t.twoFactorSecretLabel}</label>
+                          <input
+                            type="text"
+                            placeholder={t.twoFactorSecretLabel}
+                            value={twoFactorSecret}
+                            onChange={(e) => {
+                              setTwoFactorSecret(e.target.value);
+                              if (twoFactorError) {
+                                setTwoFactorError('');
+                              }
+                            }}
+                          />
+                        </div>
+                        <div className="input-field-group two-factor-actions">
+                          <button type="button" className="btn-primary" onClick={() => void handleGenerateTwoFactorCode()}>{t.generateCode}</button>
+                          <button type="button" className="btn-secondary" onClick={() => void handleCopyTwoFactorCode()} disabled={!twoFactorCode}>{t.copyCode}</button>
+                          <button type="button" className="btn-secondary" onClick={handleClearTwoFactorTool}>{t.clear}</button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="two-factor-output">
+                      <div className="two-factor-code">{twoFactorCode || '------'}</div>
+                      <div className="two-factor-meta">{t.nextRefresh} {twoFactorCountdown} {t.seconds}</div>
+                      {twoFactorError && <div className="two-factor-error">{twoFactorError}</div>}
                     </div>
                   </div>
                 </div>
