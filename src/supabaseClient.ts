@@ -55,6 +55,17 @@ export type DbSubscription = {
   createdat: string;
 };
 
+export type DbServiceAccount = {
+  id: number;
+  user_id: string;
+  service: string;
+  subscription_email: string;
+  service_password: string;
+  mail_password: string;
+  subscriber_subscription_id: number | null;
+  createdat: string;
+};
+
 export type Subscription = {
   id: number;
   user_id: string;
@@ -70,6 +81,17 @@ export type Subscription = {
   endDate: string;
   payment: number;
   workspace: string;
+  createdAt: string;
+};
+
+export type ServiceAccount = {
+  id: number;
+  user_id: string;
+  service: string;
+  subscriptionEmail: string;
+  servicePassword: string;
+  mailPassword: string;
+  subscriberSubscriptionId: number | null;
   createdAt: string;
 };
 

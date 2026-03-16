@@ -2,11 +2,13 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, supabaseAuthRedirectUrl } from './supabaseClient';
 import type {
+  DbServiceAccount,
   DbNotificationRecord,
   DbProfile,
   DbSubscription,
   NotificationRecord,
   Profile,
+  ServiceAccount,
   SettingRecord,
   Subscription,
   SubscriptionDuration,
@@ -27,6 +29,12 @@ const SERVICE_CATEGORIES: Record<string, string> = {
   'ChatGPT': 'Artificial Intelligence',
   'Perplexity': 'Artificial Intelligence',
   'Gemini': 'Artificial Intelligence',
+};
+const SERVICE_PROFILE_FIELDS: Record<string, { email: boolean; whatsapp: boolean }> = {
+  Grok: { email: false, whatsapp: false },
+  ChatGPT: { email: true, whatsapp: false },
+  Perplexity: { email: true, whatsapp: true },
+  Gemini: { email: true, whatsapp: true },
 };
 const COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#9b59b6'];
 const DARK_COLORS = ['#8edcff', '#6ee7b7', '#facc15', '#fb923c', '#c084fc'];
@@ -50,6 +58,7 @@ const translations = {
     enter: "دخول",
     dashboard: "لوحة البيانات",
     subscribers: "المشتركون",
+    serviceAccounts: "حسابات الخدمات",
     notifications: "التنبيهات",
     access: "الصلاحيات",
     settings: "الإعدادات",
@@ -104,6 +113,14 @@ const translations = {
     renew: "تجديد",
     subDetail: "تفاصيل الاشتراك",
     subscriberDetail: "بيانات المشترك",
+    manageServiceAccounts: "مكتبة حسابات الخدمات",
+    serviceAccountsIntro: "احفظ بيانات دخول كل خدمة ثم اربطها بمشترك من خلال البحث والاختيار.",
+    subscriptionEmail: "بريد الاشتراك",
+    servicePassword: "كلمة مرور الخدمة",
+    mailPassword: "كلمة مرور البريد",
+    linkedSubscriber: "المشترك المرتبط",
+    searchSubscriber: "ابحث عن مشترك بالاسم أو البريد أو الواتساب...",
+    noSubscriberLinked: "لا يوجد مشترك مرتبط",
     pendingTitle: "الحساب قيد المراجعة",
     pendingMsg: `حسابك قيد المراجعة حالياً من قبل الإدارة. يرجى مراجعة المسؤول عبر: ${SUPPORT_EMAIL}`,
     register: "تسجيل حساب جديد",
@@ -130,6 +147,7 @@ const translations = {
     enter: "Enter",
     dashboard: "Dashboard",
     subscribers: "Subscribers",
+    serviceAccounts: "Service Accounts",
     notifications: "Notifications",
     access: "Access Mgmt",
     settings: "Settings",
@@ -184,6 +202,14 @@ const translations = {
     renew: "Renew",
     subDetail: "Subscription Details",
     subscriberDetail: "Subscriber Details",
+    manageServiceAccounts: "Service Accounts Library",
+    serviceAccountsIntro: "Store each service login profile and link it to a subscriber account by search and select.",
+    subscriptionEmail: "Subscription Email",
+    servicePassword: "Service Password",
+    mailPassword: "Mail Password",
+    linkedSubscriber: "Linked Subscriber",
+    searchSubscriber: "Search subscriber by name, email, or WhatsApp...",
+    noSubscriberLinked: "No linked subscriber",
     pendingTitle: "Account Pending",
     pendingMsg: `Your account is currently pending approval. Please contact the administrator at ${SUPPORT_EMAIL}`,
     register: "Register New Account",
@@ -206,7 +232,7 @@ const translations = {
 
 type Language = keyof typeof translations;
 type Theme = 'dark' | 'light';
-type View = 'login' | 'dashboard' | 'subscribers' | 'users' | 'notifications' | 'settings';
+type View = 'login' | 'dashboard' | 'subscribers' | 'serviceAccounts' | 'users' | 'notifications' | 'settings';
 
 type SubscriptionFormData = Pick<
   Subscription,
@@ -230,6 +256,11 @@ type AnalyticsSummary = {
 type ManagedUser = Profile & {
   authMethod: UserAuthMethod;
 };
+
+type ServiceAccountFormData = Pick<
+  ServiceAccount,
+  'service' | 'subscriptionEmail' | 'servicePassword' | 'mailPassword' | 'subscriberSubscriptionId'
+>;
 
 const getStoredLanguage = (): Language => {
   const storedLanguage = localStorage.getItem('subman_lang');
@@ -255,6 +286,28 @@ const createDefaultFormData = (): SubscriptionFormData => ({
   payment: 0,
   workspace: '',
 });
+
+const createDefaultServiceAccountFormData = (): ServiceAccountFormData => ({
+  service: 'ChatGPT',
+  subscriptionEmail: '',
+  servicePassword: '',
+  mailPassword: '',
+  subscriberSubscriptionId: null,
+});
+
+const getServiceProfileFields = (service: string) => SERVICE_PROFILE_FIELDS[service] ?? { email: true, whatsapp: true };
+
+const sanitizeFormDataForService = (data: SubscriptionFormData, service: string): SubscriptionFormData => {
+  const profileFields = getServiceProfileFields(service);
+
+  return {
+    ...data,
+    service,
+    email: profileFields.email ? data.email : '',
+    whatsapp: profileFields.whatsapp ? data.whatsapp : '',
+    countryCode: profileFields.whatsapp ? data.countryCode : '20',
+  };
+};
 
 const normalizeRole = (role: DbProfile['role']): Profile['role'] => (role === 'admin' ? 'admin' : 'user');
 
@@ -286,6 +339,17 @@ const normalizeNotification = (notification: DbNotificationRecord): Notification
   createdAt: notification.createdat,
 });
 
+const normalizeServiceAccount = (serviceAccount: DbServiceAccount): ServiceAccount => ({
+  id: serviceAccount.id,
+  user_id: serviceAccount.user_id,
+  service: serviceAccount.service,
+  subscriptionEmail: serviceAccount.subscription_email,
+  servicePassword: serviceAccount.service_password,
+  mailPassword: serviceAccount.mail_password,
+  subscriberSubscriptionId: serviceAccount.subscriber_subscription_id,
+  createdAt: serviceAccount.createdat,
+});
+
 const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   service: subscription.service,
   category: subscription.category,
@@ -299,6 +363,14 @@ const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   enddate: subscription.endDate,
   payment: subscription.payment,
   workspace: subscription.workspace,
+});
+
+const toDbServiceAccountPayload = (serviceAccount: ServiceAccountFormData) => ({
+  service: serviceAccount.service,
+  subscription_email: serviceAccount.subscriptionEmail,
+  service_password: serviceAccount.servicePassword,
+  mail_password: serviceAccount.mailPassword,
+  subscriber_subscription_id: serviceAccount.subscriberSubscriptionId,
 });
 
 const formatDateDisplay = (dateStr: string) => {
@@ -381,19 +453,25 @@ function App() {
   const profileLoadingRef = useRef<string | null>(null);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
+  const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
   const [allUsers, setAllUsers] = useState<ManagedUser[]>([]);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [waMessage, setWaMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [editingServiceAccountId, setEditingServiceAccountId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [serviceAccountSearchQuery, setServiceAccountSearchQuery] = useState('');
+  const [subscriberLookupQuery, setSubscriberLookupQuery] = useState('');
   const [showOnlyRenewals, setShowOnlyRenewals] = useState(false);
 
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
 
   const [formData, setFormData] = useState<SubscriptionFormData>(createDefaultFormData);
+  const [serviceAccountFormData, setServiceAccountFormData] = useState<ServiceAccountFormData>(createDefaultServiceAccountFormData);
+  const activeProfileFields = useMemo(() => getServiceProfileFields(formData.service), [formData.service]);
   const t = translations[lang];
   const chartPalette = theme === 'dark' ? DARK_COLORS : COLORS;
   const chartAxisColor = theme === 'dark' ? '#c9d6ea' : '#5f7293';
@@ -534,6 +612,7 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn || !currentUser || (userProfile?.status === 'pending' && userProfile.role !== 'admin')) {
       setSubscriptions([]);
+      setServiceAccounts([]);
       setAllUsers([]);
       setNotifications([]);
       setWaMessage(DEFAULT_WHATSAPP_MESSAGE);
@@ -548,6 +627,10 @@ function App() {
         ? supabase.from('subscriptions').select('*')
         : supabase.from('subscriptions').select('*').eq('user_id', currentUser.id);
 
+      const serviceAccountsQuery = userProfile?.role === 'admin'
+        ? supabase.from('service_accounts').select('*')
+        : supabase.from('service_accounts').select('*').eq('user_id', currentUser.id);
+
       const profilesPromise = userProfile?.role === 'admin'
         ? supabase.from('profiles').select('*')
         : Promise.resolve({ data: null, error: null });
@@ -556,8 +639,9 @@ function App() {
         ? supabase.rpc('admin_user_auth_methods')
         : Promise.resolve({ data: null, error: null });
 
-      const [subscriptionsResult, profilesResult, authMethodsResult, settingsResult, notificationsResult] = await Promise.all([
+      const [subscriptionsResult, serviceAccountsResult, profilesResult, authMethodsResult, settingsResult, notificationsResult] = await Promise.all([
         subscriptionsQuery.order('createdat', { ascending: false }),
+        serviceAccountsQuery.order('createdat', { ascending: false }),
         profilesPromise,
         authMethodsPromise,
         supabase.from('settings').select('*').eq('id', 'whatsapp_message').maybeSingle<SettingRecord>(),
@@ -567,6 +651,7 @@ function App() {
       const normalizedProfiles = (profilesResult.data as DbProfile[] | null)?.map(normalizeProfile) ?? [];
 
       setSubscriptions((subscriptionsResult.data as DbSubscription[] | null)?.map(normalizeSubscription) ?? []);
+      setServiceAccounts((serviceAccountsResult.data as DbServiceAccount[] | null)?.map(normalizeServiceAccount) ?? []);
       setAllUsers(attachAuthMethods(normalizedProfiles, authMethodsResult.data as UserAuthMethodRow[] | null));
       setWaMessage(settingsResult.data?.value ?? DEFAULT_WHATSAPP_MESSAGE);
       setNotifications((notificationsResult.data as DbNotificationRecord[] | null)?.map(normalizeNotification) ?? []);
@@ -577,6 +662,9 @@ function App() {
     const subChannel = supabase
       .channel(`schema-db-changes-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
+        void fetchData();
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_accounts' }, () => {
         void fetchData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
@@ -609,7 +697,17 @@ function App() {
     setEditingId(null);
   };
 
+  const resetServiceAccountForm = () => {
+    setServiceAccountFormData(createDefaultServiceAccountFormData());
+    setEditingServiceAccountId(null);
+    setSubscriberLookupQuery('');
+  };
+
   const sendWhatsApp = (sub: Subscription) => {
+    if (!sub.whatsapp) {
+      return;
+    }
+
     const message = waMessage
       .replace('{name}', sub.name)
       .replace('{service}', sub.service)
@@ -639,13 +737,13 @@ function App() {
     const currentDuration = subscription.duration || 'monthly';
     const newEndDate = calculateEndDate(newStartDate, currentDuration);
 
-    setFormData({
+    setFormData(sanitizeFormDataForService({
       ...subscription,
       startDate: newStartDate,
       endDate: newEndDate,
       duration: currentDuration,
       category: subscription.category || SERVICE_CATEGORIES[subscription.service] || '',
-    });
+    }, subscription.service));
 
     setEditingId(subscription.id);
     window.scrollTo(0, 0);
@@ -668,6 +766,40 @@ function App() {
       return true;
     });
   }, [getStatus, searchQuery, showOnlyRenewals, subscriptions]);
+
+  const filteredServiceAccounts = useMemo(() => {
+    if (!serviceAccountSearchQuery.trim()) {
+      return serviceAccounts;
+    }
+
+    const query = serviceAccountSearchQuery.toLowerCase();
+
+    return serviceAccounts.filter((account) => {
+      const linkedSubscriber = subscriptions.find((sub) => sub.id === account.subscriberSubscriptionId);
+
+      return [
+        account.service,
+        account.subscriptionEmail,
+        linkedSubscriber?.name,
+        linkedSubscriber?.email,
+        linkedSubscriber?.whatsapp,
+      ].some((value) => readSearchableValue(value).includes(query));
+    });
+  }, [serviceAccountSearchQuery, serviceAccounts, subscriptions]);
+
+  const subscriberLookupResults = useMemo(() => {
+    const query = subscriberLookupQuery.trim().toLowerCase();
+    const candidates = subscriptions.filter((subscription) => {
+      if (!query) {
+        return true;
+      }
+
+      return [subscription.name, subscription.email, subscription.whatsapp, subscription.service]
+        .some((value) => readSearchableValue(value).includes(query));
+    });
+
+    return candidates.slice(0, 8);
+  }, [subscriberLookupQuery, subscriptions]);
 
   const analytics = useMemo<AnalyticsSummary>(() => {
     const from = new Date(statsFromDate);
@@ -813,6 +945,7 @@ function App() {
             <nav>
               <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title={t.dashboard}><span className="nav-glyph">◫</span></button>
               <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title={t.subscribers}><span className="nav-glyph">◎</span></button>
+              <button onClick={() => setCurrentView('serviceAccounts')} className={currentView === 'serviceAccounts' ? 'active' : ''} title={t.serviceAccounts}><span className="nav-glyph">⌘</span></button>
               <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title={t.notifications}>
                 <span className="nav-glyph">◌</span> {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
               </button>
@@ -972,12 +1105,13 @@ function App() {
                         if (!currentUser) {
                           return;
                         }
+                        const preparedFormData = sanitizeFormDataForService(formData, formData.service);
                         if (editingId) { 
-                          await supabase.from('subscriptions').update(toDbSubscriptionPayload(formData)).eq('id', editingId);
+                          await supabase.from('subscriptions').update(toDbSubscriptionPayload(preparedFormData)).eq('id', editingId);
                           setSuccessMessage(t.updated); 
                         }
                         else { 
-                          await supabase.from('subscriptions').insert([{ ...toDbSubscriptionPayload(formData), user_id: currentUser.id, createdat: new Date().toISOString() }]);
+                          await supabase.from('subscriptions').insert([{ ...toDbSubscriptionPayload(preparedFormData), user_id: currentUser.id, createdat: new Date().toISOString() }]);
                           setSuccessMessage(t.saved); 
                         }
                         resetForm();
@@ -991,7 +1125,7 @@ function App() {
                               <label>{t.service}</label>
                               <select value={formData.service} onChange={e => {
                                 const newSvc = e.target.value;
-                                setFormData({ ...formData, service: newSvc, category: SERVICE_CATEGORIES[newSvc] || '' });
+                                setFormData(sanitizeFormDataForService({ ...formData, category: SERVICE_CATEGORIES[newSvc] || '' }, newSvc));
                               }} required>
                                 {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
                               </select>
@@ -1047,19 +1181,23 @@ function App() {
                               <label>{t.name}</label>
                               <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
                             </div>
-                            <div className="input-field-group">
-                              <label>{t.email}</label>
-                              <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
-                            </div>
-                            <div className="input-field-group">
-                              <label>{t.whatsapp}</label>
-                              <div className="phone-field-row">
-                                <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })} required>
-                                  {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                                </select>
-                                <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} required />
+                            {activeProfileFields.email && (
+                              <div className="input-field-group">
+                                <label>{t.email}</label>
+                                <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} required />
                               </div>
-                            </div>
+                            )}
+                            {activeProfileFields.whatsapp && (
+                              <div className="input-field-group">
+                                <label>{t.whatsapp}</label>
+                                <div className="phone-field-row">
+                                  <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })} required>
+                                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+                                  </select>
+                                  <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} required />
+                                </div>
+                              </div>
+                            )}
                             <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
                               <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingId ? t.update : t.add}</button>
                               {editingId && (
@@ -1092,7 +1230,7 @@ function App() {
                               </td>
                               <td>
                                 <div style={{ fontWeight: 600 }}>{s.name}</div>
-                                <div className="subscriber-meta">+{s.countryCode} {s.whatsapp}</div>
+                                <div className="subscriber-meta">{s.email || (s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-')}</div>
                               </td>
                               <td>
                                 <span className={`badge ${getStatus(s.endDate).className}`}>{formatDateDisplay(s.endDate)}</span>
@@ -1102,14 +1240,187 @@ function App() {
                               </td>
                               <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                 <div className="subscriber-actions">
-                                  <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>
+                                  {s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
                                   <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
-                                  <button onClick={() => { setFormData({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
+                                  <button onClick={() => { setFormData(sanitizeFormDataForService({ ...s, category: s.category || SERVICE_CATEGORIES[s.service] || '', duration: s.duration || 'monthly' }, s.service)); setEditingId(s.id!); window.scrollTo(0, 0); }} title={t.update}>✏️</button>
                                   <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
                                 </div>
                               </td>
                             </tr>
                           ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {currentView === 'serviceAccounts' && (
+                <div className="subscribers-view animate-fade">
+                  <div className="header-actions" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h2 className="section-heading">{t.manageServiceAccounts}</h2>
+                  </div>
+                  <p className="view-banner">{t.serviceAccountsIntro}</p>
+
+                  <div className="subscribers-toolbar">
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        placeholder={t.search}
+                        className="search-input-refined"
+                        value={serviceAccountSearchQuery}
+                        onChange={e => setServiceAccountSearchQuery(e.target.value)}
+                        style={{ width: '100%', margin: 0, padding: '0.8rem 1rem' }}
+                      />
+                    </div>
+                  </div>
+
+                  {successMessage && <div className="success-banner" style={{ marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
+
+                  <div className="main-content-card">
+                    <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
+                      <form onSubmit={async (e) => {
+                        e.preventDefault();
+                        if (!currentUser) {
+                          return;
+                        }
+
+                        if (editingServiceAccountId) {
+                          await supabase.from('service_accounts').update(toDbServiceAccountPayload(serviceAccountFormData)).eq('id', editingServiceAccountId);
+                          setSuccessMessage(t.updated);
+                        } else {
+                          await supabase.from('service_accounts').insert([{ ...toDbServiceAccountPayload(serviceAccountFormData), user_id: currentUser.id, createdat: new Date().toISOString() }]);
+                          setSuccessMessage(t.saved);
+                        }
+
+                        resetServiceAccountForm();
+                        setTimeout(() => setSuccessMessage(''), 3000);
+                      }} className="admin-form">
+                        <div className="form-section">
+                          <h3 className="section-title">{t.serviceAccounts}</h3>
+                          <div className="form-row">
+                            <div className="input-field-group">
+                              <label>{t.service}</label>
+                              <select value={serviceAccountFormData.service} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, service: e.target.value })} required>
+                                {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
+                              </select>
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.subscriptionEmail}</label>
+                              <input type="email" placeholder={t.subscriptionEmail} value={serviceAccountFormData.subscriptionEmail} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, subscriptionEmail: e.target.value })} required />
+                            </div>
+                            <div className="input-field-group">
+                              <label>{t.servicePassword}</label>
+                              <input type="text" placeholder={t.servicePassword} value={serviceAccountFormData.servicePassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, servicePassword: e.target.value })} required />
+                            </div>
+                          </div>
+                          <div className="form-row" style={{ marginTop: '1.5rem' }}>
+                            <div className="input-field-group">
+                              <label>{t.mailPassword}</label>
+                              <input type="text" placeholder={t.mailPassword} value={serviceAccountFormData.mailPassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, mailPassword: e.target.value })} required />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="form-section">
+                          <h3 className="section-title">{t.linkedSubscriber}</h3>
+                          <div className="form-row">
+                            <div className="input-field-group" style={{ flex: 2 }}>
+                              <label>{t.searchSubscriber}</label>
+                              <input type="text" placeholder={t.searchSubscriber} value={subscriberLookupQuery} onChange={e => setSubscriberLookupQuery(e.target.value)} />
+                            </div>
+                            <div className="input-field-group" style={{ flex: 1.5 }}>
+                              <label>{t.linkedSubscriber}</label>
+                              <div className="calculated-label" style={{ minHeight: '50px', display: 'flex', alignItems: 'center' }}>
+                                {serviceAccountFormData.subscriberSubscriptionId
+                                  ? (() => {
+                                      const linkedSubscriber = subscriptions.find((subscription) => subscription.id === serviceAccountFormData.subscriberSubscriptionId);
+                                      return linkedSubscriber
+                                        ? `${linkedSubscriber.name} - ${linkedSubscriber.service}`
+                                        : t.noSubscriberLinked;
+                                    })()
+                                  : t.noSubscriberLinked}
+                              </div>
+                            </div>
+                            <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
+                              <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{editingServiceAccountId ? t.update : t.add}</button>
+                              {editingServiceAccountId && (
+                                <button type="button" onClick={resetServiceAccountForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="subscriber-search-grid">
+                            {subscriberLookupResults.map((subscription) => (
+                              <button
+                                key={subscription.id}
+                                type="button"
+                                className={`subscriber-search-card ${serviceAccountFormData.subscriberSubscriptionId === subscription.id ? 'selected' : ''}`}
+                                onClick={() => {
+                                  setServiceAccountFormData({ ...serviceAccountFormData, subscriberSubscriptionId: subscription.id });
+                                  setSubscriberLookupQuery(`${subscription.name} - ${subscription.service}`);
+                                }}
+                              >
+                                <strong>{subscription.name}</strong>
+                                <span>{subscription.service}</span>
+                                <small>{subscription.email || (subscription.whatsapp ? `+${subscription.countryCode} ${subscription.whatsapp}` : t.noSubscriberLinked)}</small>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </form>
+                    </div>
+
+                    <div className="table-responsive">
+                      <table className="admin-table">
+                        <thead>
+                          <tr>
+                            <th>ID</th>
+                            <th>{t.service}</th>
+                            <th>{t.subscriptionEmail}</th>
+                            <th>{t.linkedSubscriber}</th>
+                            <th>{t.actions}</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredServiceAccounts.map((account) => {
+                            const linkedSubscriber = subscriptions.find((subscription) => subscription.id === account.subscriberSubscriptionId);
+
+                            return (
+                              <tr key={account.id}>
+                                <td style={{ fontWeight: 600 }} className="inline-muted">#{account.id}</td>
+                                <td>
+                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{account.service}</div>
+                                  <div className="subscriber-meta">{account.createdAt ? new Date(account.createdAt).toLocaleDateString(lang === 'ar' ? 'ar-EG' : 'en-US') : '-'}</div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{account.subscriptionEmail}</div>
+                                  <div className="subscriber-meta">{linkedSubscriber ? linkedSubscriber.service : '-'}</div>
+                                </td>
+                                <td>
+                                  <div style={{ fontWeight: 600 }}>{linkedSubscriber?.name || t.noSubscriberLinked}</div>
+                                  <div className="subscriber-meta">{linkedSubscriber ? `${linkedSubscriber.service} - #${linkedSubscriber.id}` : '-'}</div>
+                                </td>
+                                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
+                                  <div className="subscriber-actions">
+                                    <button onClick={() => {
+                                      setServiceAccountFormData({
+                                        service: account.service,
+                                        subscriptionEmail: account.subscriptionEmail,
+                                        servicePassword: account.servicePassword,
+                                        mailPassword: account.mailPassword,
+                                        subscriberSubscriptionId: account.subscriberSubscriptionId,
+                                      });
+                                      setEditingServiceAccountId(account.id);
+                                      setSubscriberLookupQuery(linkedSubscriber ? `${linkedSubscriber.name} - ${linkedSubscriber.service}` : '');
+                                      window.scrollTo(0, 0);
+                                    }} title={t.update}>✏️</button>
+                                    <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('service_accounts').delete().eq('id', account.id); }} title={t.logout}>🗑️</button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
                         </tbody>
                       </table>
                     </div>
