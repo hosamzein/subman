@@ -2,13 +2,11 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase, supabaseAuthRedirectUrl } from './supabaseClient';
 import type {
-  DbServiceAccount,
   DbNotificationRecord,
   DbProfile,
   DbSubscription,
   NotificationRecord,
   Profile,
-  ServiceAccount,
   SettingRecord,
   Subscription,
   SubscriptionDuration,
@@ -42,6 +40,7 @@ const COUNTRY_CODES = [
 ];
 const SUPPORT_EMAIL = 'geminihossam8@gmail.com';
 const DEFAULT_WHATSAPP_MESSAGE = 'مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.';
+const GROK_SERVICE = 'Grok';
 
 const translations = {
   ar: {
@@ -326,7 +325,7 @@ const translations = {
 
 type Language = keyof typeof translations;
 type Theme = 'dark' | 'light';
-type View = 'login' | 'dashboard' | 'subscribers' | 'serviceAccounts' | 'twoFactorTool' | 'users' | 'notifications' | 'settings';
+type View = 'login' | 'dashboard' | 'subscribers' | 'twoFactorTool' | 'users' | 'notifications' | 'settings';
 type TableDensity = 'comfortable' | 'compact';
 
 type SubscriptionFormData = Pick<
@@ -352,25 +351,13 @@ type ManagedUser = Profile & {
   authMethod: UserAuthMethod;
 };
 
-type ServiceAccountFormData = Pick<
-  ServiceAccount,
-  'service' | 'subscriptionEmail' | 'servicePassword' | 'mailPassword' | 'subscriberSubscriptionId'
->;
-
 type SubscriberQuickFilter = 'all' | 'expiringSoon' | 'expired' | 'missingEmail' | 'missingWhatsapp' | 'missingContact';
-type ServiceAccountQuickFilter = 'all' | 'linked' | 'unlinked';
 
 type SubscriberColumnVisibility = {
   category: boolean;
   contact: boolean;
   workspace: boolean;
   payment: boolean;
-  activity: boolean;
-};
-
-type ServiceAccountColumnVisibility = {
-  passwords: boolean;
-  linkedSubscriber: boolean;
   activity: boolean;
 };
 
@@ -399,15 +386,17 @@ const createDefaultFormData = (): SubscriptionFormData => ({
   workspace: '',
 });
 
-const createDefaultServiceAccountFormData = (): ServiceAccountFormData => ({
-  service: 'ChatGPT',
-  subscriptionEmail: '',
-  servicePassword: '',
-  mailPassword: '',
-  subscriberSubscriptionId: null,
-});
-
 const sanitizeFormDataForService = (data: SubscriptionFormData, service: string): SubscriptionFormData => {
+  if (service !== GROK_SERVICE) {
+    return {
+      ...data,
+      service,
+      email: '',
+      whatsapp: '',
+      countryCode: COUNTRY_CODES[0]?.code ?? '20',
+    };
+  }
+
   return {
     ...data,
     service,
@@ -446,19 +435,6 @@ const normalizeNotification = (notification: DbNotificationRecord): Notification
   createdAt: notification.createdat,
 });
 
-const normalizeServiceAccount = (serviceAccount: DbServiceAccount): ServiceAccount => ({
-  id: serviceAccount.id,
-  user_id: serviceAccount.user_id,
-  service: serviceAccount.service,
-  subscriptionEmail: serviceAccount.subscription_email,
-  servicePassword: serviceAccount.service_password,
-  mailPassword: serviceAccount.mail_password,
-  subscriberSubscriptionId: serviceAccount.subscriber_subscription_id,
-  createdAt: serviceAccount.createdat,
-  updatedAt: serviceAccount.updatedat ?? null,
-  updatedBy: serviceAccount.updatedby ?? null,
-});
-
 const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   service: subscription.service,
   category: subscription.category,
@@ -472,14 +448,6 @@ const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   enddate: subscription.endDate,
   payment: subscription.payment,
   workspace: subscription.workspace,
-});
-
-const toDbServiceAccountPayload = (serviceAccount: ServiceAccountFormData) => ({
-  service: serviceAccount.service,
-  subscription_email: serviceAccount.subscriptionEmail,
-  service_password: serviceAccount.servicePassword,
-  mail_password: serviceAccount.mailPassword,
-  subscriber_subscription_id: serviceAccount.subscriberSubscriptionId,
 });
 
 const formatDateDisplay = (dateStr: string) => {
@@ -573,7 +541,11 @@ const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
   return (binary % (10 ** digits)).toString().padStart(digits, '0');
 };
 
-const getContactHealth = (subscription: Pick<Subscription, 'email' | 'whatsapp'>) => {
+const getContactHealth = (subscription: Pick<Subscription, 'service' | 'email' | 'whatsapp'>) => {
+  if (subscription.service !== GROK_SERVICE) {
+    return 'complete';
+  }
+
   const hasEmail = Boolean(subscription.email?.trim());
   const hasWhatsapp = Boolean(subscription.whatsapp?.trim());
 
@@ -645,21 +617,15 @@ function App() {
   const profileLoadingRef = useRef<string | null>(null);
 
   const [subscriptions, setSubscriptions] = useState<Subscription[]>([]);
-  const [serviceAccounts, setServiceAccounts] = useState<ServiceAccount[]>([]);
   const [allUsers, setAllUsers] = useState<ManagedUser[]>([]);
   const [notifications, setNotifications] = useState<NotificationRecord[]>([]);
   const [waMessage, setWaMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
 
   const [editingId, setEditingId] = useState<number | null>(null);
-  const [editingServiceAccountId, setEditingServiceAccountId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [serviceAccountSearchQuery, setServiceAccountSearchQuery] = useState('');
-  const [subscriberLookupQuery, setSubscriberLookupQuery] = useState('');
   const [subscriberQuickFilter, setSubscriberQuickFilter] = useState<SubscriberQuickFilter>('all');
-  const [serviceAccountQuickFilter, setServiceAccountQuickFilter] = useState<ServiceAccountQuickFilter>('all');
   const [subscriberDensity, setSubscriberDensity] = useState<TableDensity>('comfortable');
-  const [serviceAccountDensity, setServiceAccountDensity] = useState<TableDensity>('comfortable');
   const [subscriberColumns, setSubscriberColumns] = useState<SubscriberColumnVisibility>({
     category: true,
     contact: true,
@@ -667,12 +633,6 @@ function App() {
     payment: true,
     activity: true,
   });
-  const [serviceAccountColumns, setServiceAccountColumns] = useState<ServiceAccountColumnVisibility>({
-    passwords: true,
-    linkedSubscriber: true,
-    activity: true,
-  });
-  const [serviceAccountTwoFactorSecret, setServiceAccountTwoFactorSecret] = useState('');
   const [twoFactorSecret, setTwoFactorSecret] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorError, setTwoFactorError] = useState('');
@@ -684,9 +644,7 @@ function App() {
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
 
   const [formData, setFormData] = useState<SubscriptionFormData>(createDefaultFormData);
-  const [serviceAccountFormData, setServiceAccountFormData] = useState<ServiceAccountFormData>(createDefaultServiceAccountFormData);
   const [isSubscriberModalOpen, setIsSubscriberModalOpen] = useState(false);
-  const [isServiceAccountModalOpen, setIsServiceAccountModalOpen] = useState(false);
   const t = translations[lang];
   const chartPalette = theme === 'dark' ? DARK_COLORS : COLORS;
   const chartAxisColor = theme === 'dark' ? '#c9d6ea' : '#5f7293';
@@ -850,7 +808,6 @@ function App() {
   useEffect(() => {
     if (!isLoggedIn || !currentUser || (userProfile?.status === 'pending' && userProfile.role !== 'admin')) {
       setSubscriptions([]);
-      setServiceAccounts([]);
       setAllUsers([]);
       setNotifications([]);
       setWaMessage(DEFAULT_WHATSAPP_MESSAGE);
@@ -865,10 +822,6 @@ function App() {
         ? supabase.from('subscriptions').select('*')
         : supabase.from('subscriptions').select('*').eq('user_id', currentUser.id);
 
-      const serviceAccountsQuery = userProfile?.role === 'admin'
-        ? supabase.from('service_accounts').select('*')
-        : supabase.from('service_accounts').select('*').eq('user_id', currentUser.id);
-
       const profilesPromise = userProfile?.role === 'admin'
         ? supabase.from('profiles').select('*')
         : Promise.resolve({ data: null, error: null });
@@ -877,9 +830,8 @@ function App() {
         ? supabase.rpc('admin_user_auth_methods')
         : Promise.resolve({ data: null, error: null });
 
-      const [subscriptionsResult, serviceAccountsResult, profilesResult, authMethodsResult, settingsResult, notificationsResult] = await Promise.all([
+      const [subscriptionsResult, profilesResult, authMethodsResult, settingsResult, notificationsResult] = await Promise.all([
         subscriptionsQuery.order('createdat', { ascending: false }),
-        serviceAccountsQuery.order('createdat', { ascending: false }),
         profilesPromise,
         authMethodsPromise,
         supabase.from('settings').select('*').eq('id', 'whatsapp_message').maybeSingle<SettingRecord>(),
@@ -889,7 +841,6 @@ function App() {
       const normalizedProfiles = (profilesResult.data as DbProfile[] | null)?.map(normalizeProfile) ?? [];
 
       setSubscriptions((subscriptionsResult.data as DbSubscription[] | null)?.map(normalizeSubscription) ?? []);
-      setServiceAccounts((serviceAccountsResult.data as DbServiceAccount[] | null)?.map(normalizeServiceAccount) ?? []);
       setAllUsers(attachAuthMethods(normalizedProfiles, authMethodsResult.data as UserAuthMethodRow[] | null));
       setWaMessage(settingsResult.data?.value ?? DEFAULT_WHATSAPP_MESSAGE);
       setNotifications((notificationsResult.data as DbNotificationRecord[] | null)?.map(normalizeNotification) ?? []);
@@ -900,9 +851,6 @@ function App() {
     const subChannel = supabase
       .channel(`schema-db-changes-${currentUser.id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'subscriptions' }, () => {
-        void fetchData();
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'service_accounts' }, () => {
         void fetchData();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, () => {
@@ -934,14 +882,6 @@ function App() {
     setFormData(createDefaultFormData());
     setEditingId(null);
     setIsSubscriberModalOpen(false);
-  }, []);
-
-  const resetServiceAccountForm = useCallback(() => {
-    setServiceAccountFormData(createDefaultServiceAccountFormData());
-    setEditingServiceAccountId(null);
-    setSubscriberLookupQuery('');
-    setServiceAccountTwoFactorSecret('');
-    setIsServiceAccountModalOpen(false);
   }, []);
 
   const handleGenerateTwoFactorCode = useCallback(async () => {
@@ -984,7 +924,7 @@ function App() {
   }, []);
 
   const sendWhatsApp = (sub: Subscription) => {
-    if (!sub.whatsapp) {
+    if (sub.service !== GROK_SERVICE || !sub.whatsapp) {
       return;
     }
 
@@ -1021,7 +961,6 @@ function App() {
 
     return new Map(entries);
   }, [allUsers, userProfile]);
-  const subscriptionsById = useMemo(() => new Map(subscriptions.map((subscription) => [subscription.id, subscription])), [subscriptions]);
 
   const getActorName = useCallback((userId: string | null | undefined) => {
     if (!userId) {
@@ -1030,16 +969,6 @@ function App() {
 
     return profilesById.get(userId)?.username ?? t.unknownUser;
   }, [profilesById, t.unknownUser]);
-
-  const copyText = useCallback(async (value: string) => {
-    if (!value) {
-      return;
-    }
-
-    await navigator.clipboard.writeText(value);
-    setSuccessMessage(t.copied);
-    setTimeout(() => setSuccessMessage(''), 2500);
-  }, [t.copied]);
 
   const openSubscriptionEditor = useCallback((subscription: Subscription) => {
     setFormData(sanitizeFormDataForService({
@@ -1050,22 +979,6 @@ function App() {
     setEditingId(subscription.id);
     setIsSubscriberModalOpen(true);
   }, []);
-
-  const openServiceAccountEditor = useCallback((account: ServiceAccount) => {
-    const linkedSubscriber = subscriptionsById.get(account.subscriberSubscriptionId ?? -1);
-
-    setServiceAccountFormData({
-      service: account.service,
-      subscriptionEmail: account.subscriptionEmail,
-      servicePassword: account.servicePassword,
-      mailPassword: account.mailPassword,
-      subscriberSubscriptionId: account.subscriberSubscriptionId,
-    });
-    setServiceAccountTwoFactorSecret('');
-    setEditingServiceAccountId(account.id);
-    setSubscriberLookupQuery(linkedSubscriber ? `${linkedSubscriber.name} - ${linkedSubscriber.service}` : '');
-    setIsServiceAccountModalOpen(true);
-  }, [subscriptionsById]);
 
   const submitSubscriptionForm = useCallback(async () => {
     if (!currentUser) {
@@ -1092,30 +1005,6 @@ function App() {
     setTimeout(() => setSuccessMessage(''), 3000);
   }, [currentUser, editingId, formData, resetForm, t.saved, t.updated]);
 
-  const submitServiceAccountForm = useCallback(async () => {
-    if (!currentUser) {
-      return;
-    }
-
-    const now = new Date().toISOString();
-    const payload = {
-      ...toDbServiceAccountPayload(serviceAccountFormData),
-      updatedat: now,
-      updatedby: currentUser.id,
-    };
-
-    if (editingServiceAccountId) {
-      await supabase.from('service_accounts').update(payload).eq('id', editingServiceAccountId);
-      setSuccessMessage(t.updated);
-    } else {
-      await supabase.from('service_accounts').insert([{ ...payload, user_id: currentUser.id, createdat: now }]);
-      setSuccessMessage(t.saved);
-    }
-
-    resetServiceAccountForm();
-    setTimeout(() => setSuccessMessage(''), 3000);
-  }, [currentUser, editingServiceAccountId, resetServiceAccountForm, serviceAccountFormData, t.saved, t.updated]);
-
   const handleRenewClick = (subscription: Subscription) => {
     const newStartDate = subscription.endDate;
     const currentDuration = subscription.duration || 'monthly';
@@ -1137,6 +1026,7 @@ function App() {
     return subscriptions.filter(sub => {
       const status = getStatus(sub.endDate);
       const contactHealth = getContactHealth(sub);
+      const isGrokSubscriber = sub.service === GROK_SERVICE;
 
       if (showOnlyRenewals && !status.needsRenewal) {
         return false;
@@ -1150,88 +1040,28 @@ function App() {
         return false;
       }
 
-      if (subscriberQuickFilter === 'missingEmail' && sub.email.trim()) {
+      if (subscriberQuickFilter === 'missingEmail' && (!isGrokSubscriber || sub.email.trim())) {
         return false;
       }
 
-      if (subscriberQuickFilter === 'missingWhatsapp' && sub.whatsapp.trim()) {
+      if (subscriberQuickFilter === 'missingWhatsapp' && (!isGrokSubscriber || sub.whatsapp.trim())) {
         return false;
       }
 
-      if (subscriberQuickFilter === 'missingContact' && contactHealth !== 'missing') {
+      if (subscriberQuickFilter === 'missingContact' && (!isGrokSubscriber || contactHealth !== 'missing')) {
         return false;
       }
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
+        const searchableContact = isGrokSubscriber ? [sub.email, sub.whatsapp] : [];
 
-        return [sub.name, sub.email, sub.whatsapp, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
+        return [sub.name, ...searchableContact, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
       }
 
       return true;
     });
   }, [getStatus, searchQuery, showOnlyRenewals, subscriberQuickFilter, subscriptions]);
-
-  const filteredServiceAccounts = useMemo(() => {
-    const query = serviceAccountSearchQuery.toLowerCase();
-
-    return serviceAccounts.filter((account) => {
-      const linkedSubscriber = subscriptions.find((sub) => sub.id === account.subscriberSubscriptionId);
-
-      if (serviceAccountQuickFilter === 'linked' && !linkedSubscriber) {
-        return false;
-      }
-
-      if (serviceAccountQuickFilter === 'unlinked' && linkedSubscriber) {
-        return false;
-      }
-
-      if (!serviceAccountSearchQuery.trim()) {
-        return true;
-      }
-
-      return [
-        account.service,
-        account.subscriptionEmail,
-        account.mailPassword,
-        linkedSubscriber?.name,
-        linkedSubscriber?.email,
-        linkedSubscriber?.whatsapp,
-      ].some((value) => readSearchableValue(value).includes(query));
-    });
-  }, [serviceAccountQuickFilter, serviceAccountSearchQuery, serviceAccounts, subscriptions]);
-
-  const subscriberLookupResults = useMemo(() => {
-    const query = subscriberLookupQuery.trim().toLowerCase();
-    const candidates = subscriptions.filter((subscription) => {
-      if (!query) {
-        return true;
-      }
-
-      return [subscription.name, subscription.email, subscription.whatsapp, subscription.service]
-        .some((value) => readSearchableValue(value).includes(query));
-    });
-
-    candidates.sort((left, right) => {
-      const leftServiceMatch = Number(left.service === serviceAccountFormData.service);
-      const rightServiceMatch = Number(right.service === serviceAccountFormData.service);
-
-      if (leftServiceMatch !== rightServiceMatch) {
-        return rightServiceMatch - leftServiceMatch;
-      }
-
-      const leftStatusPriority = getStatus(left.endDate).needsRenewal ? 0 : 1;
-      const rightStatusPriority = getStatus(right.endDate).needsRenewal ? 0 : 1;
-
-      if (leftStatusPriority !== rightStatusPriority) {
-        return rightStatusPriority - leftStatusPriority;
-      }
-
-      return left.name.localeCompare(right.name);
-    });
-
-    return candidates.slice(0, 8);
-  }, [getStatus, serviceAccountFormData.service, subscriberLookupQuery, subscriptions]);
 
   const analytics = useMemo<AnalyticsSummary>(() => {
     const from = new Date(statsFromDate);
@@ -1268,13 +1098,13 @@ function App() {
 
   const handleExport = async () => {
     const { utils, writeFile } = await import('xlsx');
-    const data = subscriptions.map(s => ({
+    const normalizedData = subscriptions.map(s => ({
       [t.id]: s.id,
       [t.service]: s.service,
       [t.category]: s.category || SERVICE_CATEGORIES[s.service] || '',
       [t.name]: s.name,
-      [t.email]: s.email,
-      [t.whatsapp]: `+${s.countryCode}${s.whatsapp}`,
+      [t.email]: s.service === GROK_SERVICE ? s.email : '',
+      [t.whatsapp]: s.service === GROK_SERVICE && s.whatsapp ? `+${s.countryCode}${s.whatsapp}` : '',
       [t.startDate]: formatDateDisplay(s.startDate),
       [t.endDate]: formatDateDisplay(s.endDate),
       [t.duration]: s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly,
@@ -1282,7 +1112,7 @@ function App() {
       [t.workspace]: s.workspace,
     }));
 
-    const worksheet = utils.json_to_sheet(data);
+    const worksheet = utils.json_to_sheet(normalizedData);
     const workbook = utils.book_new();
     utils.book_append_sheet(workbook, worksheet, 'Subscriptions');
     writeFile(workbook, 'Subman_Export.xlsx');
@@ -1337,10 +1167,57 @@ function App() {
 
   const locale = lang === 'ar' ? 'ar-EG' : 'en-US';
   const subscriberFormContactHealth = getContactHealth(formData);
-  const linkedSubscriberForForm = subscriptionsById.get(serviceAccountFormData.subscriberSubscriptionId ?? -1);
+  const normalizedPathname = window.location.pathname.replace(/\/+$/, '') || '/';
+  const isPublicMfaRoute = normalizedPathname === '/mfa';
+
+  const twoFactorToolView = (
+    <div className="settings-view animate-fade">
+      <h2 className="section-heading">{t.twoFactorGenerator}</h2>
+      <p className="view-banner">{t.twoFactorIntro}</p>
+      <div className="form-card two-factor-card">
+        <div className="two-factor-hint">
+          <strong>{t.chatgptMfaHintTitle}</strong>
+          <p>{t.chatgptMfaHintBody}</p>
+        </div>
+        <div className="form-section">
+          <div className="form-row two-factor-row">
+            <div className="input-field-group" style={{ flex: 2 }}>
+              <label>{t.twoFactorSecretLabel}</label>
+              <input
+                type="text"
+                placeholder={t.twoFactorSecretLabel}
+                value={twoFactorSecret}
+                onChange={(e) => {
+                  setTwoFactorSecret(e.target.value);
+                  if (twoFactorError) {
+                    setTwoFactorError('');
+                  }
+                }}
+              />
+            </div>
+            <div className="input-field-group two-factor-actions">
+              <button type="button" className="btn-primary" onClick={() => void handleGenerateTwoFactorCode()}>{t.generateCode}</button>
+              <button type="button" className="btn-secondary" onClick={() => void handleCopyTwoFactorCode()} disabled={!twoFactorCode}>{t.copyCode}</button>
+              <button type="button" className="btn-secondary" onClick={handleClearTwoFactorTool}>{t.clear}</button>
+            </div>
+          </div>
+        </div>
+
+        <div className="two-factor-output">
+          <div className="two-factor-code">{twoFactorCode || '------'}</div>
+          <div className="two-factor-meta">{t.nextRefresh} {twoFactorCountdown} {t.seconds}</div>
+          {twoFactorError && <div className="two-factor-error">{twoFactorError}</div>}
+        </div>
+      </div>
+    </div>
+  );
 
   const renderSubscriberForm = (mode: 'create' | 'edit') => (
     <form onSubmit={(e) => { e.preventDefault(); void submitSubscriptionForm(); }} className="admin-form">
+      {(() => {
+        const isGrokService = formData.service === GROK_SERVICE;
+        return (
+          <>
       <div className="form-section">
         <div className="form-section-header">
           <h3 className="section-title">{mode === 'edit' ? t.editSubscriber : t.createSubscriber}</h3>
@@ -1414,19 +1291,23 @@ function App() {
             <label>{t.name}</label>
             <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
           </div>
-          <div className="input-field-group">
-            <label>{t.email}</label>
-            <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-          </div>
-          <div className="input-field-group">
-            <label>{t.whatsapp}</label>
-            <div className="phone-field-row">
-              <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })}>
-                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-              </select>
-              <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} />
-            </div>
-          </div>
+          {isGrokService && (
+            <>
+              <div className="input-field-group">
+                <label>{t.email}</label>
+                <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+              </div>
+              <div className="input-field-group">
+                <label>{t.whatsapp}</label>
+                <div className="phone-field-row">
+                  <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })}>
+                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+                  </select>
+                  <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} />
+                </div>
+              </div>
+            </>
+          )}
           <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
             <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{mode === 'edit' ? t.update : t.add}</button>
             {mode === 'edit' && (
@@ -1434,103 +1315,38 @@ function App() {
             )}
           </div>
         </div>
-        <div className={`quality-hint quality-${subscriberFormContactHealth}`}>
-          <strong>{subscriberFormContactHealth === 'complete' ? t.contactComplete : subscriberFormContactHealth === 'partial' ? t.contactPartial : t.contactMissing}</strong>
-          <span>{subscriberFormContactHealth === 'missing' ? t.contactMissingHint : ''}</span>
-        </div>
+        {isGrokService && (
+          <div className={`quality-hint quality-${subscriberFormContactHealth}`}>
+            <strong>{subscriberFormContactHealth === 'complete' ? t.contactComplete : subscriberFormContactHealth === 'partial' ? t.contactPartial : t.contactMissing}</strong>
+            <span>{subscriberFormContactHealth === 'missing' ? t.contactMissingHint : ''}</span>
+          </div>
+        )}
       </div>
-    </form>
-  );
-
-  const renderServiceAccountForm = (mode: 'create' | 'edit') => (
-    <form onSubmit={(e) => { e.preventDefault(); void submitServiceAccountForm(); }} className="admin-form">
-      <div className="form-section">
-        <div className="form-section-header">
-          <h3 className="section-title">{mode === 'edit' ? t.editServiceAccount : t.createServiceAccount}</h3>
-          {mode === 'edit' && (
-            <button type="button" onClick={resetServiceAccountForm} className="btn-secondary modal-close-inline">{t.close}</button>
-          )}
-        </div>
-        <div className="form-row">
-          <div className="input-field-group">
-            <label>{t.service}</label>
-            <select value={serviceAccountFormData.service} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, service: e.target.value })} required>
-              {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-          <div className="input-field-group">
-            <label>{t.subscriptionEmail}</label>
-            <input type="email" placeholder={t.subscriptionEmail} value={serviceAccountFormData.subscriptionEmail} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, subscriptionEmail: e.target.value })} required />
-          </div>
-          <div className="input-field-group">
-            <label>{t.servicePassword}</label>
-            <input type="text" placeholder={t.servicePassword} value={serviceAccountFormData.servicePassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, servicePassword: e.target.value })} required />
-          </div>
-        </div>
-        <div className="form-row" style={{ marginTop: '1.5rem' }}>
-          <div className="input-field-group">
-            <label>{t.mailPassword}</label>
-            <input type="text" placeholder={t.mailPassword} value={serviceAccountFormData.mailPassword} onChange={e => setServiceAccountFormData({ ...serviceAccountFormData, mailPassword: e.target.value })} required />
-          </div>
-          <div className="input-field-group">
-            <label>{t.serviceAccountTwoFactorSecret}</label>
-            <input type="text" placeholder={t.serviceAccountTwoFactorSecret} value={serviceAccountTwoFactorSecret} onChange={e => setServiceAccountTwoFactorSecret(e.target.value)} />
-            <small className="help-text" style={{ marginTop: '0.35rem' }}>{t.serviceAccountTwoFactorHint}</small>
-            <button type="button" className="btn-secondary" style={{ marginTop: '0.5rem' }} onClick={() => {
-              setTwoFactorSecret(serviceAccountTwoFactorSecret);
-              setCurrentView('twoFactorTool');
-              window.scrollTo(0, 0);
-            }}>{t.generateCode}</button>
-          </div>
-        </div>
-      </div>
-
-      <div className="form-section">
-        <h3 className="section-title">{t.recommendedMatches}</h3>
-        <div className="form-row">
-          <div className="input-field-group" style={{ flex: 2 }}>
-            <label>{t.searchSubscriber}</label>
-            <input type="text" placeholder={t.searchSubscriber} value={subscriberLookupQuery} onChange={e => setSubscriberLookupQuery(e.target.value)} />
-          </div>
-          <div className="input-field-group" style={{ flex: 1.5 }}>
-            <label>{t.linkedSubscriber}</label>
-            <div className="calculated-label" style={{ minHeight: '50px', display: 'flex', alignItems: 'center' }}>
-              {linkedSubscriberForForm ? `${linkedSubscriberForForm.name} - ${linkedSubscriberForForm.service}` : t.noSubscriberLinked}
-            </div>
-          </div>
-          <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
-            <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{mode === 'edit' ? t.update : t.add}</button>
-            {mode === 'edit' && (
-              <button type="button" onClick={resetServiceAccountForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
-            )}
-          </div>
-        </div>
-
-        <div className="subscriber-search-grid">
-          {subscriberLookupResults.map((subscription) => (
-            <button
-              key={subscription.id}
-              type="button"
-              className={`subscriber-search-card ${serviceAccountFormData.subscriberSubscriptionId === subscription.id ? 'selected' : ''}`}
-              onClick={() => {
-                setServiceAccountFormData({ ...serviceAccountFormData, subscriberSubscriptionId: subscription.id });
-                setSubscriberLookupQuery(`${subscription.name} - ${subscription.service}`);
-              }}
-            >
-              <strong>{subscription.name}</strong>
-              <span>{subscription.service}</span>
-              <small>{subscription.service === serviceAccountFormData.service ? t.serviceMatched : subscription.service}</small>
-              <small>{subscription.email || (subscription.whatsapp ? `+${subscription.countryCode} ${subscription.whatsapp}` : t.noSubscriberLinked)}</small>
-            </button>
-          ))}
-        </div>
-      </div>
+          </>
+        );
+      })()}
     </form>
   );
 
   return (
     <div className={`app-layout ${theme}-theme ${!isLoggedIn || (userProfile?.status === 'pending' && userProfile?.role !== 'admin') ? 'is-login-page' : ''}`}>
-      {!isLoggedIn ? (
+      {isPublicMfaRoute ? (
+        <main className="content">
+          <header className="main-header">
+            <div className="header-left">
+              <button className="toggle-btn" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} title={t.theme}>
+                {theme === 'dark' ? '☀️' : '🌙'}
+              </button>
+              <button className="toggle-btn lang-toggle" onClick={() => setLang(lang === 'ar' ? 'en' : 'ar')} title={t.lang}>
+                {lang === 'ar' ? 'EN' : 'AR'}
+              </button>
+            </div>
+            <h1 className="platform-name">{t.twoFactorTool}</h1>
+          </header>
+          <div className="view-container">{twoFactorToolView}</div>
+          <footer className="app-footer">{t.rights} &copy; {new Date().getFullYear()} {t.owner}</footer>
+        </main>
+      ) : !isLoggedIn ? (
         <div className="login-container">
           <div className="login-card">
             <h1>{t.title}</h1>
@@ -1570,7 +1386,6 @@ function App() {
             <nav>
               <button onClick={() => setCurrentView('dashboard')} className={currentView === 'dashboard' ? 'active' : ''} title={t.dashboard}><span className="nav-glyph">◫</span></button>
               <button onClick={() => setCurrentView('subscribers')} className={currentView === 'subscribers' ? 'active' : ''} title={t.subscribers}><span className="nav-glyph">◎</span></button>
-              <button onClick={() => setCurrentView('serviceAccounts')} className={currentView === 'serviceAccounts' ? 'active' : ''} title={t.serviceAccounts}><span className="nav-glyph">⌘</span></button>
               <button onClick={() => setCurrentView('twoFactorTool')} className={currentView === 'twoFactorTool' ? 'active' : ''} title={t.twoFactorTool}><span className="nav-glyph">#</span></button>
               <button onClick={() => setCurrentView('notifications')} className={currentView === 'notifications' ? 'active' : ''} title={t.notifications}>
                 <span className="nav-glyph">◌</span> {notifications && notifications.length > 0 && <span className="notif-badge">{notifications.length}</span>}
@@ -1779,6 +1594,7 @@ function App() {
                           {filteredSubscriptions.map(s => {
                             const status = getStatus(s.endDate);
                             const contactHealth = getContactHealth(s);
+                            const isGrokSubscriber = s.service === GROK_SERVICE;
 
                             return (
                               <tr key={s.id}>
@@ -1795,9 +1611,9 @@ function App() {
                                 {subscriberColumns.contact && (
                                   <td>
                                     <div className="contact-stack">
-                                      <div>{s.email || '-'}</div>
-                                      <div className="subscriber-meta">{s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-'}</div>
-                                      <span className={`badge ${contactHealth === 'complete' ? 'badge-success' : contactHealth === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{contactHealth === 'complete' ? t.contactComplete : contactHealth === 'partial' ? t.contactPartial : t.contactMissing}</span>
+                                      <div>{isGrokSubscriber ? (s.email || '-') : '-'}</div>
+                                      <div className="subscriber-meta">{isGrokSubscriber && s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-'}</div>
+                                      {isGrokSubscriber && <span className={`badge ${contactHealth === 'complete' ? 'badge-success' : contactHealth === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{contactHealth === 'complete' ? t.contactComplete : contactHealth === 'partial' ? t.contactPartial : t.contactMissing}</span>}
                                     </div>
                                   </td>
                                 )}
@@ -1815,7 +1631,7 @@ function App() {
                                 )}
                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <div className="subscriber-actions">
-                                    {s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
+                                    {isGrokSubscriber && s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
                                     <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
                                     <button onClick={() => openSubscriptionEditor(s)} title={t.update}>✏️</button>
                                     <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>
@@ -1841,173 +1657,7 @@ function App() {
                 </div>
               )}
 
-              {currentView === 'serviceAccounts' && (
-                <div className="subscribers-view animate-fade">
-                  <div className="header-actions" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 className="section-heading">{t.manageServiceAccounts}</h2>
-                  </div>
-                  <p className="view-banner">{t.serviceAccountsIntro}</p>
-
-                  <div className="subscribers-toolbar">
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="text"
-                        placeholder={t.search}
-                        className="search-input-refined"
-                        value={serviceAccountSearchQuery}
-                        onChange={e => setServiceAccountSearchQuery(e.target.value)}
-                        style={{ width: '100%', margin: 0, padding: '0.8rem 1rem' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="toolbar-panel">
-                    <div className="filter-group">
-                      <span className="toolbar-label">{t.quickFilters}</span>
-                      {(['all', 'linked', 'unlinked'] as ServiceAccountQuickFilter[]).map((filter) => (
-                        <button key={filter} type="button" className={`filter-chip ${serviceAccountQuickFilter === filter ? 'active' : ''}`} onClick={() => setServiceAccountQuickFilter(filter)}>
-                          {filter === 'all' ? t.clearAll : filter === 'linked' ? t.linkedOnly : t.unlinkedOnly}
-                        </button>
-                      ))}
-                    </div>
-                    <div className="filter-group">
-                      <span className="toolbar-label">{t.tableDensity}</span>
-                      <button type="button" className={`filter-chip ${serviceAccountDensity === 'comfortable' ? 'active' : ''}`} onClick={() => setServiceAccountDensity('comfortable')}>{t.comfortable}</button>
-                      <button type="button" className={`filter-chip ${serviceAccountDensity === 'compact' ? 'active' : ''}`} onClick={() => setServiceAccountDensity('compact')}>{t.compact}</button>
-                    </div>
-                    <div className="filter-group filter-checks">
-                      <span className="toolbar-label">{t.visibleColumns}</span>
-                      <label><input type="checkbox" checked={serviceAccountColumns.passwords} onChange={() => setServiceAccountColumns((current) => ({ ...current, passwords: !current.passwords }))} /> {t.passwords}</label>
-                      <label><input type="checkbox" checked={serviceAccountColumns.linkedSubscriber} onChange={() => setServiceAccountColumns((current) => ({ ...current, linkedSubscriber: !current.linkedSubscriber }))} /> {t.linkedSubscriber}</label>
-                      <label><input type="checkbox" checked={serviceAccountColumns.activity} onChange={() => setServiceAccountColumns((current) => ({ ...current, activity: !current.activity }))} /> {t.activity}</label>
-                    </div>
-                  </div>
-
-                  {successMessage && <div className="success-banner" style={{ marginBottom: '1rem', textAlign: 'center' }}>{successMessage}</div>}
-
-                  <div className="main-content-card">
-                    {!isServiceAccountModalOpen && (
-                      <div style={{ padding: '2.5rem', borderBottom: '1px solid var(--border-color)' }}>
-                        {renderServiceAccountForm('create')}
-                      </div>
-                    )}
-
-                    <div className={`table-responsive ${serviceAccountDensity === 'compact' ? 'compact-table-wrap' : ''}`}>
-                      <table className={`admin-table ${serviceAccountDensity === 'compact' ? 'compact-table' : ''}`}>
-                        <thead>
-                          <tr>
-                            <th>ID</th>
-                            <th>{t.service}</th>
-                            <th>{t.subscriptionEmail}</th>
-                            {serviceAccountColumns.passwords && <th>{t.passwords}</th>}
-                            {serviceAccountColumns.linkedSubscriber && <th>{t.linkedSubscriber}</th>}
-                            {serviceAccountColumns.activity && <th>{t.activity}</th>}
-                            <th>{t.actions}</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {filteredServiceAccounts.map((account) => {
-                            const linkedSubscriber = subscriptionsById.get(account.subscriberSubscriptionId ?? -1);
-
-                            return (
-                              <tr key={account.id}>
-                                <td style={{ fontWeight: 600 }} className="inline-muted">#{account.id}</td>
-                                <td>
-                                  <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{account.service}</div>
-                                  <span className={`badge ${linkedSubscriber ? 'badge-success' : 'badge-warning'}`}>{linkedSubscriber ? t.linked : t.unlinked}</span>
-                                </td>
-                                <td>
-                                  <div style={{ fontWeight: 600 }}>{account.subscriptionEmail}</div>
-                                  <div className="subscriber-meta">{account.servicePassword}</div>
-                                </td>
-                                {serviceAccountColumns.passwords && (
-                                  <td>
-                                    <div style={{ fontWeight: 600 }}>{account.servicePassword}</div>
-                                    <div className="subscriber-meta">{account.mailPassword}</div>
-                                  </td>
-                                )}
-                                {serviceAccountColumns.linkedSubscriber && (
-                                  <td>
-                                    <div style={{ fontWeight: 600 }}>{linkedSubscriber?.name || t.noSubscriberLinked}</div>
-                                    <div className="subscriber-meta">{linkedSubscriber ? `${linkedSubscriber.service} - #${linkedSubscriber.id}` : '-'}</div>
-                                  </td>
-                                )}
-                                {serviceAccountColumns.activity && (
-                                  <td>
-                                    <div style={{ fontWeight: 600 }}>{formatDateTimeDisplay(account.updatedAt ?? account.createdAt, locale)}</div>
-                                    <div className="subscriber-meta">{getActorName(account.updatedBy ?? account.user_id)}</div>
-                                  </td>
-                                )}
-                                <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
-                                  <div className="subscriber-actions">
-                                    <button onClick={() => { void copyText(account.subscriptionEmail); }} title={t.subscriptionEmail}>@</button>
-                                    <button onClick={() => { void copyText(account.servicePassword); }} title={t.servicePassword}>PW</button>
-                                    <button onClick={() => { void copyText(account.mailPassword); }} title={t.mailPassword}>MAIL</button>
-                                    <button onClick={() => openServiceAccountEditor(account)} title={t.update}>✏️</button>
-                                    <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('service_accounts').delete().eq('id', account.id); }} title={t.logout}>🗑️</button>
-                                  </div>
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-
-                  {isServiceAccountModalOpen && (
-                    <div className="modal-overlay" onClick={resetServiceAccountForm}>
-                      <div className="modal-card main-content-card" onClick={(event) => event.stopPropagation()}>
-                        <div style={{ padding: '2rem' }}>
-                          {renderServiceAccountForm('edit')}
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {currentView === 'twoFactorTool' && (
-                <div className="settings-view animate-fade">
-                  <h2 className="section-heading">{t.twoFactorGenerator}</h2>
-                  <p className="view-banner">{t.twoFactorIntro}</p>
-                  <div className="form-card two-factor-card">
-                    <div className="two-factor-hint">
-                      <strong>{t.chatgptMfaHintTitle}</strong>
-                      <p>{t.chatgptMfaHintBody}</p>
-                    </div>
-                    <div className="form-section">
-                      <div className="form-row two-factor-row">
-                        <div className="input-field-group" style={{ flex: 2 }}>
-                          <label>{t.twoFactorSecretLabel}</label>
-                          <input
-                            type="text"
-                            placeholder={t.twoFactorSecretLabel}
-                            value={twoFactorSecret}
-                            onChange={(e) => {
-                              setTwoFactorSecret(e.target.value);
-                              if (twoFactorError) {
-                                setTwoFactorError('');
-                              }
-                            }}
-                          />
-                        </div>
-                        <div className="input-field-group two-factor-actions">
-                          <button type="button" className="btn-primary" onClick={() => void handleGenerateTwoFactorCode()}>{t.generateCode}</button>
-                          <button type="button" className="btn-secondary" onClick={() => void handleCopyTwoFactorCode()} disabled={!twoFactorCode}>{t.copyCode}</button>
-                          <button type="button" className="btn-secondary" onClick={handleClearTwoFactorTool}>{t.clear}</button>
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="two-factor-output">
-                      <div className="two-factor-code">{twoFactorCode || '------'}</div>
-                      <div className="two-factor-meta">{t.nextRefresh} {twoFactorCountdown} {t.seconds}</div>
-                      {twoFactorError && <div className="two-factor-error">{twoFactorError}</div>}
-                    </div>
-                  </div>
-                </div>
-              )}
+              {currentView === 'twoFactorTool' && twoFactorToolView}
 
               {currentView === 'users' && (
                 <div className="users-view animate-fade">
