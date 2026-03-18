@@ -1,6 +1,14 @@
 {
   "rewrites": [
     {
+      "source": "/mfa",
+      "destination": "/mfa.html"
+    },
+    {
+      "source": "/mfa/",
+      "destination": "/mfa.html"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
