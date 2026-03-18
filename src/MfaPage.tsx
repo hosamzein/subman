@@ -6,12 +6,13 @@ const TOTP_PERIOD_MS = TOTP_PERIOD_SECONDS * 1000;
 
 const t = {
   secret: 'Secret ID',
-  generate: 'Generate Code',
-  copy: 'Copy Code',
+  pasteSecret: 'Paste Secret ID',
+  copySecret: 'Copy Secret ID',
   clear: 'Clear',
-  missingSecret: 'Enter a 2FA secret first',
+  pasted: 'Secret ID pasted',
+  copied: 'Secret ID copied',
+  clipboardError: 'Clipboard access denied.',
   invalidSecret: 'Invalid secret. Use Base32 only.',
-  copied: 'Code copied',
 } as const;
 
 const normalizeBase32Secret = (secret: string) => secret.replace(/\s+/g, '').toUpperCase();
@@ -90,8 +91,10 @@ export default function MfaPage() {
 
     if (!normalized) {
       setCode('');
-      setError(t.missingSecret);
+      setError('');
       setSuccess('');
+      setExpiryAt(null);
+      setCountdown(TOTP_PERIOD_SECONDS);
       return;
     }
 
@@ -105,20 +108,36 @@ export default function MfaPage() {
     } catch {
       setCode('');
       setSuccess('');
+      setExpiryAt(null);
       setError(t.invalidSecret);
     }
   }, []);
 
-  const handleCopy = useCallback(async () => {
-    if (!code) {
+  const handlePasteSecret = useCallback(async () => {
+    try {
+      const clipboardText = await navigator.clipboard.readText();
+      const nextSecret = normalizeBase32Secret(clipboardText);
+      setSecret(nextSecret);
+      setError('');
+      setSuccess(t.pasted);
+      window.setTimeout(() => setSuccess(''), 1800);
+      void handleGenerate(nextSecret);
+    } catch {
+      setSuccess('');
+      setError(t.clipboardError);
+    }
+  }, [handleGenerate]);
+
+  const handleCopySecret = useCallback(async () => {
+    if (!secret) {
       return;
     }
 
-    await navigator.clipboard.writeText(code);
+    await navigator.clipboard.writeText(secret);
     setSuccess(t.copied);
     setError('');
-    window.setTimeout(() => setSuccess(''), 2500);
-  }, [code]);
+    window.setTimeout(() => setSuccess(''), 1800);
+  }, [secret]);
 
   const handleClear = useCallback(() => {
     setSecret('');
@@ -180,27 +199,26 @@ export default function MfaPage() {
             aria-label={t.secret}
             value={secret}
             onChange={(event) => {
-              setSecret(event.target.value);
+              const nextSecret = event.target.value;
+              setSecret(nextSecret);
               if (error) {
                 setError('');
               }
+              void handleGenerate(nextSecret);
             }}
             placeholder={t.secret}
           />
-          <div className="mfa-inline-code" aria-live="polite">{codeForDisplay}</div>
-        </div>
-
-        <div className="mfa-actions">
-          <button type="button" className="mfa-btn mfa-btn-primary mfa-icon-btn" onClick={() => void handleGenerate(secret)} title={t.generate} aria-label={t.generate}>
+          <button type="button" className="mfa-btn mfa-icon-btn" onClick={() => void handlePasteSecret()} title={t.pasteSecret} aria-label={t.pasteSecret}>
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-              <path d="M13.4 2.6a1 1 0 0 1 1.82.8l-1.4 4.15h4.58a1 1 0 0 1 .77 1.64l-8.4 10.2a1 1 0 0 1-1.76-.88l1.18-4.02H5.68a1 1 0 0 1-.8-1.6l8.52-10.3Z" />
+              <path d="M9 3a2 2 0 0 0-2 2v1H6a2 2 0 0 0-2 2v11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1h2a2 2 0 0 0 2-2V8.4a2 2 0 0 0-.6-1.4l-3.4-3.4a2 2 0 0 0-1.4-.6H9Zm0 3h5v2h2v8H9V6Zm7-1.6L18.6 7H16V4.4ZM6 8h1v8a2 2 0 0 0 2 2h5v1H6V8Z" />
             </svg>
           </button>
-          <button type="button" className="mfa-btn mfa-icon-btn" onClick={() => void handleCopy()} disabled={!code} title={t.copy} aria-label={t.copy}>
+          <button type="button" className="mfa-btn mfa-icon-btn" onClick={() => void handleCopySecret()} disabled={!secret} title={t.copySecret} aria-label={t.copySecret}>
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M9 3a2 2 0 0 0-2 2v2H6a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h7a2 2 0 0 0 2-2v-2h1a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H9Zm7 2v9h-1V9a2 2 0 0 0-2-2H9V5h7Zm-3 4v9H6V9h7Z" />
             </svg>
           </button>
+          <div className="mfa-inline-code" aria-live="polite">{codeForDisplay}</div>
           <button type="button" className="mfa-btn mfa-icon-btn" onClick={handleClear} title={t.clear} aria-label={t.clear}>
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M6.7 5.3a1 1 0 0 1 1.4 0L12 9.18l3.9-3.88a1 1 0 1 1 1.4 1.42L13.4 10.6l3.9 3.9a1 1 0 1 1-1.4 1.4L12 12.02l-3.9 3.88a1 1 0 1 1-1.4-1.42l3.9-3.88-3.9-3.9a1 1 0 0 1 0-1.4Z" />
