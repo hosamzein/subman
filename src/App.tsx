@@ -126,6 +126,8 @@ const translations = {
     secretId: "Secret ID",
     generateSecretCode: "توليد الرمز",
     codeValidFor: "صالح لمدة",
+    mfaLink: "رابط مولد 2FA",
+    secretCodeExpiredHint: "طلب كود جديد",
     manageServiceAccounts: "مكتبة حسابات الخدمات",
     serviceAccountsIntro: "احفظ بيانات دخول كل خدمة ثم اربطها بمشترك من خلال البحث والاختيار.",
     subscriptionEmail: "بريد الاشتراك",
@@ -170,7 +172,7 @@ const translations = {
     contactColumn: "بيانات التواصل",
     twoFactorGenerator: "مولد 2FA",
     twoFactorIntro: "أدخل مفتاح Base32 لتوليد رمز TOTP داخل المتصفح فقط بدون حفظ أي بيانات. يتم مسح السر والرمز محلياً بعد 10 دقائق.",
-    twoFactorSecretLabel: "2FA Secret",
+    twoFactorSecretLabel: "Secret Code",
     currentCode: "الرمز الحالي",
     nextRefresh: "ينتهي خلال",
     seconds: "ثانية",
@@ -274,6 +276,8 @@ const translations = {
     secretId: "Secret ID",
     generateSecretCode: "Generate Code",
     codeValidFor: "Valid for",
+    mfaLink: "2FA Generator Link",
+    secretCodeExpiredHint: "get new code",
     manageServiceAccounts: "Service Accounts Library",
     serviceAccountsIntro: "Store each service login profile and link it to a subscriber account by search and select.",
     subscriptionEmail: "Subscription Email",
@@ -318,7 +322,7 @@ const translations = {
     contactColumn: "Contact Details",
     twoFactorGenerator: "2FA Generator",
     twoFactorIntro: "Enter a Base32 secret to generate a TOTP code in-browser only. Nothing is stored, and the secret/code are cleared locally after 10 minutes.",
-    twoFactorSecretLabel: "2FA Secret",
+    twoFactorSecretLabel: "Secret Code",
     currentCode: "Current Code",
     nextRefresh: "Expires in",
     seconds: "seconds",
@@ -786,6 +790,7 @@ function App() {
   const [twoFactorError, setTwoFactorError] = useState('');
   const [twoFactorExpiryAt, setTwoFactorExpiryAt] = useState<number | null>(null);
   const [twoFactorCountdown, setTwoFactorCountdown] = useState(TOTP_PERIOD_SECONDS);
+  const mfaAutoSecretRef = useRef<string>('');
 
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
@@ -1058,8 +1063,8 @@ function App() {
     }
   }, [formData.twoFactorSecret, t.invalidSecret, t.secretRequired]);
 
-  const handleGenerateTwoFactorCode = useCallback(async () => {
-    const normalizedSecret = normalizeBase32Secret(twoFactorSecret);
+  const generateTwoFactorFromSecret = useCallback(async (rawSecret: string) => {
+    const normalizedSecret = normalizeBase32Secret(rawSecret);
 
     if (!normalizedSecret) {
       setTwoFactorCode('');
@@ -1071,13 +1076,36 @@ function App() {
       const code = await generateTotpCode(normalizedSecret);
       setTwoFactorCode(code);
       setTwoFactorError('');
-       setTwoFactorExpiryAt(Date.now() + TOTP_PERIOD_MS);
-       setTwoFactorCountdown(TOTP_PERIOD_SECONDS);
+      setTwoFactorExpiryAt(Date.now() + TOTP_PERIOD_MS);
+      setTwoFactorCountdown(TOTP_PERIOD_SECONDS);
     } catch {
       setTwoFactorCode('');
       setTwoFactorError(t.invalidSecret);
     }
-  }, [t.invalidSecret, t.secretRequired, twoFactorSecret]);
+  }, [t.invalidSecret, t.secretRequired]);
+
+  const handleGenerateTwoFactorCode = useCallback(async () => {
+    await generateTwoFactorFromSecret(twoFactorSecret);
+  }, [generateTwoFactorFromSecret, twoFactorSecret]);
+
+  useEffect(() => {
+    const normalizedPathname = window.location.pathname.replace(/\/+$/, '') || '/';
+
+    if (normalizedPathname !== '/mfa') {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    const secretFromUrl = normalizeBase32Secret(params.get('secret') ?? '');
+
+    if (!secretFromUrl || mfaAutoSecretRef.current === secretFromUrl) {
+      return;
+    }
+
+    mfaAutoSecretRef.current = secretFromUrl;
+    setTwoFactorSecret(secretFromUrl);
+    void generateTwoFactorFromSecret(secretFromUrl);
+  }, [generateTwoFactorFromSecret]);
 
   const handleCopyTwoFactorCode = useCallback(async () => {
     if (!twoFactorCode) {
@@ -1181,6 +1209,9 @@ function App() {
       : subscription.duration === 'quarterly'
         ? t.quarterly
         : t.monthly;
+    const mfaLink = subscription.twoFactorSecret
+      ? `${window.location.origin}/mfa?secret=${encodeURIComponent(subscription.twoFactorSecret)}`
+      : `${window.location.origin}/mfa`;
 
     const detailsRows: string[] = [];
     const credentialsRows: string[] = [];
@@ -1194,6 +1225,7 @@ function App() {
     addLine(detailsRows, t.endDate, subscription.endDate);
     addLine(detailsRows, t.amount, subscription.payment);
     addLine(detailsRows, t.workspace, subscription.workspace);
+    addLine(detailsRows, t.mfaLink, mfaLink);
 
     addLine(credentialsRows, t.subscriptionMail, subscription.subscriptionMail);
     addLine(credentialsRows, t.subscriptionPassword, subscription.subscriptionPassword);
@@ -1209,13 +1241,16 @@ function App() {
         const generatedCode = await generateTotpCode(normalizeBase32Secret(subscription.twoFactorSecret));
         const validForSeconds = getTotpRemainingSeconds();
         credentialsRows.push(`Secret Code: ${generatedCode} (${t.codeValidFor} ${validForSeconds} ${t.seconds})`);
+        credentialsRows.push(t.secretCodeExpiredHint);
       } catch {
         if (subscription.twoFactorCode) {
           credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
         }
+        credentialsRows.push(t.secretCodeExpiredHint);
       }
     } else if (subscription.twoFactorCode) {
       credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
+      credentialsRows.push(t.secretCodeExpiredHint);
     }
 
     const rows: string[] = [];
@@ -1224,7 +1259,7 @@ function App() {
     pushSection(rows, t.subscriberDetail, subscriberRows);
 
     return rows.join('\n');
-  }, [t.amount, t.category, t.codeValidFor, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
+  }, [t.amount, t.category, t.codeValidFor, t.duration, t.email, t.endDate, t.facebook, t.id, t.mfaLink, t.monthly, t.name, t.quarterly, t.secretCodeExpiredHint, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
 
   const copySubscriberData = useCallback(async (subscription: Subscription) => {
     const message = await buildSubscriberShareMessage(subscription);
@@ -1489,19 +1524,41 @@ function App() {
 
   const handleExport = async () => {
     const { utils, writeFile } = await import('xlsx');
-    const normalizedData = subscriptions.map(s => ({
-      [t.id]: s.id,
-      [t.service]: s.service,
-      [t.category]: s.category || getDefaultCategoryForService(s.service) || '',
-      [t.name]: s.name,
-      [t.email]: s.email,
-      [t.whatsapp]: s.whatsapp ? `+${s.countryCode}${s.whatsapp}` : '',
-      [t.facebook]: s.facebook || '',
-      [t.startDate]: formatDateDisplay(s.startDate),
-      [t.endDate]: formatDateDisplay(s.endDate),
-      [t.duration]: s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly,
-      [t.amount]: s.payment,
-      [t.workspace]: s.workspace,
+    const normalizedData = await Promise.all(subscriptions.map(async (s) => {
+      const durationLabel = s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly;
+      let secretCode = s.twoFactorCode ?? '';
+      let secretCodeValidFor = '';
+
+      if (s.twoFactorSecret) {
+        try {
+          secretCode = await generateTotpCode(normalizeBase32Secret(s.twoFactorSecret));
+          secretCodeValidFor = `${getTotpRemainingSeconds()} ${t.seconds}`;
+        } catch {
+          // Keep fallback value when secret generation fails.
+        }
+      }
+
+      return {
+        [`${t.subDetail} - ${t.id}`]: s.id,
+        [`${t.subDetail} - ${t.service}`]: s.service,
+        [`${t.subDetail} - ${t.category}`]: s.category || getDefaultCategoryForService(s.service) || '',
+        [`${t.subDetail} - ${t.duration}`]: durationLabel,
+        [`${t.subDetail} - ${t.startDate}`]: formatDateDisplay(s.startDate),
+        [`${t.subDetail} - ${t.endDate}`]: formatDateDisplay(s.endDate),
+        [`${t.subDetail} - ${t.amount}`]: s.payment,
+        [`${t.subDetail} - ${t.workspace}`]: s.workspace || '',
+
+        [`${t.subscriptionCredentials} - ${t.subscriptionMail}`]: s.subscriptionMail || '',
+        [`${t.subscriptionCredentials} - ${t.subscriptionPassword}`]: s.subscriptionPassword || '',
+        [`${t.subscriptionCredentials} - ${t.secretId}`]: s.twoFactorSecret || '',
+        [`${t.subscriptionCredentials} - Secret Code`]: secretCode,
+        [`${t.subscriptionCredentials} - ${t.codeValidFor}`]: secretCodeValidFor,
+
+        [`${t.subscriberDetail} - ${t.name}`]: s.name,
+        [`${t.subscriberDetail} - ${t.email}`]: s.email || '',
+        [`${t.subscriberDetail} - ${t.whatsapp}`]: s.whatsapp ? `+${s.countryCode}${s.whatsapp}` : '',
+        [`${t.subscriberDetail} - ${t.facebook}`]: s.facebook || '',
+      };
     }));
 
     const worksheet = utils.json_to_sheet(normalizedData);
@@ -2035,7 +2092,6 @@ function App() {
                                 <td>
                                   <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
                                   {subscriberColumns.category && <div className="subscriber-meta">{s.category || getDefaultCategoryForService(s.service)}</div>}
-                                  <span className={`badge ${status.className}`}>{status.label}</span>
                                 </td>
                                 <td>
                                   <div style={{ fontWeight: 600 }}>{s.name}</div>
@@ -2055,7 +2111,7 @@ function App() {
                                 {subscriberColumns.payment && <td>{s.payment || 0}</td>}
                                 <td>
                                   <div style={{ fontWeight: 700 }}>{formatDateDisplay(s.endDate)}</div>
-                                  <div className="subscriber-meta">{status.label}</div>
+                                  <span className={`badge ${status.className}`}>{status.label}</span>
                                 </td>
                                 {subscriberColumns.activity && (
                                   <td>
