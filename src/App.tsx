@@ -1225,7 +1225,6 @@ function App() {
     addLine(detailsRows, t.endDate, subscription.endDate);
     addLine(detailsRows, t.amount, subscription.payment);
     addLine(detailsRows, t.workspace, subscription.workspace);
-    addLine(detailsRows, t.mfaLink, mfaLink);
 
     addLine(credentialsRows, t.subscriptionMail, subscription.subscriptionMail);
     addLine(credentialsRows, t.subscriptionPassword, subscription.subscriptionPassword);
@@ -1241,17 +1240,16 @@ function App() {
         const generatedCode = await generateTotpCode(normalizeBase32Secret(subscription.twoFactorSecret));
         const validForSeconds = getTotpRemainingSeconds();
         credentialsRows.push(`Secret Code: ${generatedCode} (${t.codeValidFor} ${validForSeconds} ${t.seconds})`);
-        credentialsRows.push(t.secretCodeExpiredHint);
       } catch {
         if (subscription.twoFactorCode) {
           credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
         }
-        credentialsRows.push(t.secretCodeExpiredHint);
       }
     } else if (subscription.twoFactorCode) {
       credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
-      credentialsRows.push(t.secretCodeExpiredHint);
     }
+
+    addLine(credentialsRows, t.secretCodeExpiredHint, mfaLink);
 
     const rows: string[] = [];
     pushSection(rows, t.subDetail, detailsRows);
@@ -1259,7 +1257,7 @@ function App() {
     pushSection(rows, t.subscriberDetail, subscriberRows);
 
     return rows.join('\n');
-  }, [t.amount, t.category, t.codeValidFor, t.duration, t.email, t.endDate, t.facebook, t.id, t.mfaLink, t.monthly, t.name, t.quarterly, t.secretCodeExpiredHint, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
+  }, [t.amount, t.category, t.codeValidFor, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretCodeExpiredHint, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
 
   const copySubscriberData = useCallback(async (subscription: Subscription) => {
     const message = await buildSubscriberShareMessage(subscription);
