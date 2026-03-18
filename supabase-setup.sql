@@ -71,6 +71,9 @@ drop table if exists public.service_accounts cascade;
 do $$
 begin
   alter table public.subscriptions add column if not exists facebook text not null default '';
+  alter table public.subscriptions add column if not exists subscriptionmail text not null default '';
+  alter table public.subscriptions add column if not exists subscriptionpassword text not null default '';
+  alter table public.subscriptions add column if not exists twofactorsecret text not null default '';
   alter table public.subscriptions add column if not exists updatedat timestamptz;
   alter table public.subscriptions add column if not exists updatedby uuid references public.profiles (id) on delete set null;
 

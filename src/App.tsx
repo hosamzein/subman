@@ -110,6 +110,12 @@ const translations = {
     openMessenger: "فتح ماسنجر",
     subDetail: "تفاصيل الاشتراك",
     subscriberDetail: "بيانات المشترك",
+    subscriptionCredentials: "بيانات الاشتراك",
+    subscriptionMail: "بريد الاشتراك",
+    subscriptionPassword: "كلمة مرور الاشتراك",
+    secretId: "Secret ID",
+    generateSecretCode: "توليد الرمز",
+    codeValidFor: "صالح لمدة",
     manageServiceAccounts: "مكتبة حسابات الخدمات",
     serviceAccountsIntro: "احفظ بيانات دخول كل خدمة ثم اربطها بمشترك من خلال البحث والاختيار.",
     subscriptionEmail: "بريد الاشتراك",
@@ -252,6 +258,12 @@ const translations = {
     openMessenger: "Open Messenger",
     subDetail: "Subscription Details",
     subscriberDetail: "Subscriber Details",
+    subscriptionCredentials: "Subscription Credentials",
+    subscriptionMail: "Subscription Mail",
+    subscriptionPassword: "Subscription Password",
+    secretId: "Secret ID",
+    generateSecretCode: "Generate Code",
+    codeValidFor: "Valid for",
     manageServiceAccounts: "Service Accounts Library",
     serviceAccountsIntro: "Store each service login profile and link it to a subscriber account by search and select.",
     subscriptionEmail: "Subscription Email",
@@ -335,7 +347,7 @@ type View = 'login' | 'dashboard' | 'subscribers' | 'twoFactorTool' | 'users' | 
 
 type SubscriptionFormData = Pick<
   Subscription,
-  'service' | 'category' | 'duration' | 'name' | 'email' | 'facebook' | 'countryCode' | 'whatsapp' | 'startDate' | 'endDate' | 'payment' | 'workspace'
+  'service' | 'category' | 'duration' | 'name' | 'email' | 'facebook' | 'countryCode' | 'whatsapp' | 'startDate' | 'endDate' | 'payment' | 'workspace' | 'subscriptionMail' | 'subscriptionPassword' | 'twoFactorSecret'
 >;
 
 type SubscriptionStatus = {
@@ -382,6 +394,8 @@ const createDefaultFormData = (): SubscriptionFormData => ({
   duration: 'monthly',
   name: '',
   email: '',
+  subscriptionMail: '',
+  subscriptionPassword: '',
   facebook: '',
   countryCode: '20',
   whatsapp: '',
@@ -389,6 +403,7 @@ const createDefaultFormData = (): SubscriptionFormData => ({
   endDate: '',
   payment: 0,
   workspace: '',
+  twoFactorSecret: '',
 });
 
 const sanitizeFormDataForService = (data: SubscriptionFormData, service: string): SubscriptionFormData => {
@@ -417,6 +432,8 @@ const normalizeSubscription = (subscription: DbSubscription): Subscription => ({
   duration: subscription.duration,
   name: subscription.name,
   email: subscription.email,
+  subscriptionMail: subscription.subscriptionmail ?? subscription.subscription_mail ?? '',
+  subscriptionPassword: subscription.subscriptionpassword ?? subscription.subscription_password ?? '',
   whatsapp: subscription.whatsapp,
   facebook: subscription.facebook,
   twoFactorSecret: subscription.twofactorsecret ?? subscription.two_factor_secret ?? '',
@@ -442,6 +459,9 @@ const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   duration: subscription.duration,
   name: subscription.name,
   email: subscription.email,
+  subscriptionmail: subscription.subscriptionMail,
+  subscriptionpassword: subscription.subscriptionPassword,
+  twofactorsecret: subscription.twoFactorSecret,
   whatsapp: subscription.whatsapp,
   facebook: subscription.facebook,
   countrycode: subscription.countryCode,
@@ -542,6 +562,11 @@ const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
   return (binary % (10 ** digits)).toString().padStart(digits, '0');
 };
 
+const getTotpRemainingSeconds = (period = 30) => {
+  const elapsed = Math.floor(Date.now() / 1000) % period;
+  return period - elapsed;
+};
+
 const getContactHealth = (subscription: Pick<Subscription, 'email' | 'whatsapp'>) => {
   const hasEmail = Boolean(subscription.email?.trim());
   const hasWhatsapp = Boolean(subscription.whatsapp?.trim());
@@ -640,6 +665,8 @@ function App() {
 
   const [formData, setFormData] = useState<SubscriptionFormData>(createDefaultFormData);
   const [isSubscriberModalOpen, setIsSubscriberModalOpen] = useState(false);
+  const [formSecretCode, setFormSecretCode] = useState('');
+  const [formSecretValiditySeconds, setFormSecretValiditySeconds] = useState(0);
   const t = translations[lang];
   const chartPalette = theme === 'dark' ? DARK_COLORS : COLORS;
   const chartAxisColor = theme === 'dark' ? '#c9d6ea' : '#5f7293';
@@ -877,7 +904,32 @@ function App() {
     setFormData(createDefaultFormData());
     setEditingId(null);
     setIsSubscriberModalOpen(false);
+    setFormSecretCode('');
+    setFormSecretValiditySeconds(0);
   }, []);
+
+  const handleGenerateFormSecretCode = useCallback(async () => {
+    const normalizedSecret = normalizeBase32Secret(formData.twoFactorSecret ?? '');
+
+    if (!normalizedSecret) {
+      setFormSecretCode('');
+      setFormSecretValiditySeconds(0);
+      setSuccessMessage(t.secretRequired);
+      setTimeout(() => setSuccessMessage(''), 2500);
+      return;
+    }
+
+    try {
+      const code = await generateTotpCode(normalizedSecret);
+      setFormSecretCode(code);
+      setFormSecretValiditySeconds(getTotpRemainingSeconds());
+    } catch {
+      setFormSecretCode('');
+      setFormSecretValiditySeconds(0);
+      setSuccessMessage(t.invalidSecret);
+      setTimeout(() => setSuccessMessage(''), 2500);
+    }
+  }, [formData.twoFactorSecret, t.invalidSecret, t.secretRequired]);
 
   const handleGenerateTwoFactorCode = useCallback(async () => {
     const normalizedSecret = normalizeBase32Secret(twoFactorSecret);
@@ -996,6 +1048,8 @@ function App() {
     addRow(t.category, subscription.category || getDefaultCategoryForService(subscription.service) || '');
     addRow(t.name, subscription.name);
     addRow(t.email, subscription.email);
+    addRow(t.subscriptionMail, subscription.subscriptionMail);
+    addRow(t.subscriptionPassword, subscription.subscriptionPassword);
     addRow(t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
     addRow(t.facebook, subscription.facebook);
     addRow(t.duration, durationLabel);
@@ -1005,17 +1059,25 @@ function App() {
     addRow(t.workspace, subscription.workspace);
 
     if (subscription.twoFactorSecret) {
-      rows.push(`2FA Secret: ${subscription.twoFactorSecret}`);
-    }
+      rows.push(`${t.secretId}: ${subscription.twoFactorSecret}`);
 
-    if (subscription.twoFactorCode) {
+      try {
+        const generatedCode = await generateTotpCode(normalizeBase32Secret(subscription.twoFactorSecret));
+        const validForSeconds = getTotpRemainingSeconds();
+        rows.push(`2FA Code: ${generatedCode} (${t.codeValidFor} ${validForSeconds} ${t.seconds})`);
+      } catch {
+        if (subscription.twoFactorCode) {
+          rows.push(`2FA Code: ${subscription.twoFactorCode}`);
+        }
+      }
+    } else if (subscription.twoFactorCode) {
       rows.push(`2FA Code: ${subscription.twoFactorCode}`);
     }
 
     await navigator.clipboard.writeText(rows.join('\n'));
     setSuccessMessage(t.copyFullData);
     setTimeout(() => setSuccessMessage(''), 2500);
-  }, [t.amount, t.category, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.service, t.startDate, t.whatsapp, t.workspace, t.yearly]);
+  }, [t.amount, t.category, t.codeValidFor, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretId, t.seconds, t.service, t.startDate, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
 
   const sendWhatsApp = (sub: Subscription) => {
     if (!sub.whatsapp) {
@@ -1255,7 +1317,6 @@ function App() {
   };
 
   const locale = lang === 'ar' ? 'ar-EG' : 'en-US';
-  const subscriberFormContactHealth = getContactHealth(formData);
   const normalizedPathname = window.location.pathname.replace(/\/+$/, '') || '/';
   const isPublicMfaRoute = normalizedPathname === '/mfa';
   const twoFactorDisplayCode = twoFactorCode ? `${twoFactorCode.slice(0, 3)} ${twoFactorCode.slice(3, 6)}` : '--- ---';
@@ -1403,6 +1464,47 @@ function App() {
       </div>
 
       <div className="form-section">
+        <h3 className="section-title">{t.subscriptionCredentials}</h3>
+        <div className="form-row">
+          <div className="input-field-group">
+            <input
+              aria-label={t.subscriptionMail}
+              type="email"
+              placeholder={t.subscriptionMail}
+              value={formData.subscriptionMail}
+              onChange={e => setFormData({ ...formData, subscriptionMail: e.target.value })}
+            />
+          </div>
+          <div className="input-field-group">
+            <input
+              aria-label={t.subscriptionPassword}
+              type="text"
+              placeholder={t.subscriptionPassword}
+              value={formData.subscriptionPassword}
+              onChange={e => setFormData({ ...formData, subscriptionPassword: e.target.value })}
+            />
+          </div>
+          <div className="input-field-group">
+            <div className="phone-field-row">
+              <input
+                aria-label={t.secretId}
+                type="text"
+                placeholder={t.secretId}
+                value={formData.twoFactorSecret || ''}
+                onChange={e => setFormData({ ...formData, twoFactorSecret: e.target.value })}
+              />
+              <button type="button" className="btn-secondary" style={{ width: '56px', minWidth: '56px', padding: 0 }} onClick={() => { void handleGenerateFormSecretCode(); }} title={t.generateSecretCode}>#</button>
+            </div>
+            {formSecretCode && (
+              <small className="help-text" style={{ marginTop: '0.45rem', display: 'block' }}>
+                {formSecretCode} - {t.codeValidFor} {formSecretValiditySeconds} {t.seconds}
+              </small>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="form-section">
         <h3 className="section-title">{t.subscriberDetail}</h3>
         <div className="form-row">
           <div className="input-field-group">
@@ -1429,10 +1531,6 @@ function App() {
               <button type="button" onClick={resetForm} className="btn-secondary" style={{ margin: '0 0.5rem 0 0', height: '50px' }}>{t.cancel}</button>
             )}
           </div>
-        </div>
-        <div className={`quality-hint quality-${subscriberFormContactHealth}`}>
-          <strong>{subscriberFormContactHealth === 'complete' ? t.contactComplete : subscriberFormContactHealth === 'partial' ? t.contactPartial : t.contactMissing}</strong>
-          <span>{subscriberFormContactHealth === 'missing' ? t.contactMissingHint : ''}</span>
         </div>
       </div>
           </>

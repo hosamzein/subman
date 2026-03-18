@@ -45,6 +45,10 @@ export type DbSubscription = {
   duration: SubscriptionDuration;
   name: string;
   email: string;
+  subscriptionmail?: string;
+  subscription_mail?: string;
+  subscriptionpassword?: string;
+  subscription_password?: string;
   whatsapp: string;
   facebook: string;
   twofactorsecret?: string | null;
@@ -69,6 +73,8 @@ export type Subscription = {
   duration: SubscriptionDuration;
   name: string;
   email: string;
+  subscriptionMail: string;
+  subscriptionPassword: string;
   whatsapp: string;
   facebook: string;
   twoFactorSecret?: string;
