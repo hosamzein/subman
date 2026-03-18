@@ -29,6 +29,8 @@ const SERVICE_CATEGORY_OPTIONS: Record<string, string[]> = {
   Gemini: ['pro', 'plus', 'ultra'],
 };
 const getDefaultCategoryForService = (service: string) => SERVICE_CATEGORY_OPTIONS[service]?.[0] ?? '';
+const TOTP_PERIOD_SECONDS = 10 * 60;
+const TOTP_PERIOD_MS = TOTP_PERIOD_SECONDS * 1000;
 const SUBSCRIPTION_CREDENTIALS_CACHE_KEY = 'subman_subscription_credentials_v1';
 type SubscriptionCredentialsCacheValue = {
   subscriptionMail: string;
@@ -664,7 +666,7 @@ const decodeBase32 = (secret: string) => {
   return bytes;
 };
 
-const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
+const generateTotpCode = async (secret: string, period = TOTP_PERIOD_SECONDS, digits = 6) => {
   const keyBytes = decodeBase32(secret);
 
   if (!keyBytes.length) {
@@ -687,7 +689,7 @@ const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
   return (binary % (10 ** digits)).toString().padStart(digits, '0');
 };
 
-const getTotpRemainingSeconds = (period = 30) => {
+const getTotpRemainingSeconds = (period = TOTP_PERIOD_SECONDS) => {
   const elapsed = Math.floor(Date.now() / 1000) % period;
   return period - elapsed;
 };
@@ -783,7 +785,7 @@ function App() {
   const [twoFactorCode, setTwoFactorCode] = useState('');
   const [twoFactorError, setTwoFactorError] = useState('');
   const [twoFactorExpiryAt, setTwoFactorExpiryAt] = useState<number | null>(null);
-  const [twoFactorCountdown, setTwoFactorCountdown] = useState(600);
+  const [twoFactorCountdown, setTwoFactorCountdown] = useState(TOTP_PERIOD_SECONDS);
 
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
@@ -933,7 +935,7 @@ function App() {
     const timer = window.setInterval(() => {
       setTwoFactorCountdown(() => {
         if (!twoFactorExpiryAt) {
-          return 600;
+          return TOTP_PERIOD_SECONDS;
         }
 
         const nextValue = Math.max(0, Math.ceil((twoFactorExpiryAt - Date.now()) / 1000));
@@ -1069,8 +1071,8 @@ function App() {
       const code = await generateTotpCode(normalizedSecret);
       setTwoFactorCode(code);
       setTwoFactorError('');
-      setTwoFactorExpiryAt(Date.now() + 10 * 60 * 1000);
-      setTwoFactorCountdown(600);
+       setTwoFactorExpiryAt(Date.now() + TOTP_PERIOD_MS);
+       setTwoFactorCountdown(TOTP_PERIOD_SECONDS);
     } catch {
       setTwoFactorCode('');
       setTwoFactorError(t.invalidSecret);
@@ -1092,7 +1094,7 @@ function App() {
     setTwoFactorCode('');
     setTwoFactorError('');
     setTwoFactorExpiryAt(null);
-    setTwoFactorCountdown(600);
+    setTwoFactorCountdown(TOTP_PERIOD_SECONDS);
   }, []);
 
   const resolveMessengerUrl = useCallback((facebookValue: string) => {
@@ -1162,47 +1164,79 @@ function App() {
       rows.push(`${label}: ${value}`);
     };
 
+    const pushSection = (title: string, sectionRows: string[]) => {
+      if (!sectionRows.length) {
+        return;
+      }
+
+      if (rows.length) {
+        rows.push('');
+      }
+
+      rows.push(`=== ${title} ===`);
+      rows.push(...sectionRows);
+    };
+
     const durationLabel = subscription.duration === 'yearly'
       ? t.yearly
       : subscription.duration === 'quarterly'
         ? t.quarterly
         : t.monthly;
 
-    addRow(t.id, subscription.id);
-    addRow(t.service, subscription.service);
-    addRow(t.category, subscription.category || getDefaultCategoryForService(subscription.service) || '');
-    addRow(t.name, subscription.name);
-    addRow(t.email, subscription.email);
-    addRow(t.subscriptionMail, subscription.subscriptionMail);
-    addRow(t.subscriptionPassword, subscription.subscriptionPassword);
-    addRow(t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
-    addRow(t.facebook, subscription.facebook);
-    addRow(t.duration, durationLabel);
-    addRow(t.startDate, subscription.startDate);
-    addRow(t.endDate, subscription.endDate);
-    addRow(t.amount, subscription.payment);
-    addRow(t.workspace, subscription.workspace);
+    const detailsRows: string[] = [];
+    const credentialsRows: string[] = [];
+    const subscriberRows: string[] = [];
+
+    const addToSection = (section: string[], label: string, value: string | number | null | undefined) => {
+      const sectionBuffer = rows;
+      rows.length = 0;
+      addRow(label, value);
+      section.push(...rows);
+      rows.length = 0;
+      rows.push(...sectionBuffer);
+    };
+
+    addToSection(detailsRows, t.id, subscription.id);
+    addToSection(detailsRows, t.service, subscription.service);
+    addToSection(detailsRows, t.category, subscription.category || getDefaultCategoryForService(subscription.service) || '');
+    addToSection(detailsRows, t.duration, durationLabel);
+    addToSection(detailsRows, t.startDate, subscription.startDate);
+    addToSection(detailsRows, t.endDate, subscription.endDate);
+    addToSection(detailsRows, t.amount, subscription.payment);
+    addToSection(detailsRows, t.workspace, subscription.workspace);
+
+    addToSection(credentialsRows, t.subscriptionMail, subscription.subscriptionMail);
+    addToSection(credentialsRows, t.subscriptionPassword, subscription.subscriptionPassword);
+    addToSection(credentialsRows, t.secretId, subscription.twoFactorSecret);
+
+    addToSection(subscriberRows, t.name, subscription.name);
+    addToSection(subscriberRows, t.email, subscription.email);
+    addToSection(subscriberRows, t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
+    addToSection(subscriberRows, t.facebook, subscription.facebook);
 
     if (subscription.twoFactorSecret) {
-      rows.push(`${t.secretId}: ${subscription.twoFactorSecret}`);
-
       try {
         const generatedCode = await generateTotpCode(normalizeBase32Secret(subscription.twoFactorSecret));
         const validForSeconds = getTotpRemainingSeconds();
-        rows.push(`2FA Code: ${generatedCode} (${t.codeValidFor} ${validForSeconds} ${t.seconds})`);
+        credentialsRows.push(`Secret Code: ${generatedCode} (${t.codeValidFor} ${validForSeconds} ${t.seconds})`);
       } catch {
         if (subscription.twoFactorCode) {
-          rows.push(`2FA Code: ${subscription.twoFactorCode}`);
+          credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
         }
       }
     } else if (subscription.twoFactorCode) {
-      rows.push(`2FA Code: ${subscription.twoFactorCode}`);
+      credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
     }
+
+    rows.length = 0;
+    pushSection(t.subDetail, detailsRows);
+    pushSection(t.subscriptionCredentials, credentialsRows);
+    pushSection(t.subscriberDetail, subscriberRows);
 
     await navigator.clipboard.writeText(rows.join('\n'));
     setSuccessMessage(t.copyFullData);
     setTimeout(() => setSuccessMessage(''), 2500);
-  }, [t.amount, t.category, t.codeValidFor, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretId, t.seconds, t.service, t.startDate, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
+  }, [t.amount, t.category, t.codeValidFor, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
 
   const sendWhatsApp = (sub: Subscription) => {
     if (!sub.whatsapp) {
@@ -1519,7 +1553,7 @@ function App() {
   const normalizedPathname = window.location.pathname.replace(/\/+$/, '') || '/';
   const isPublicMfaRoute = normalizedPathname === '/mfa';
   const twoFactorDisplayCode = twoFactorCode ? `${twoFactorCode.slice(0, 3)} ${twoFactorCode.slice(3, 6)}` : '--- ---';
-  const twoFactorExpiryProgress = twoFactorExpiryAt ? Math.max(0, Math.min(100, (twoFactorCountdown / 600) * 100)) : 0;
+  const twoFactorExpiryProgress = twoFactorExpiryAt ? Math.max(0, Math.min(100, (twoFactorCountdown / TOTP_PERIOD_SECONDS) * 100)) : 0;
 
   const twoFactorToolView = (
     <div className="settings-view animate-fade two-factor-view">
