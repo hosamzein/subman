@@ -471,6 +471,24 @@ const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   workspace: subscription.workspace,
 });
 
+const toDbSubscriptionPayloadSnakeCase = (subscription: SubscriptionFormData) => ({
+  service: subscription.service,
+  category: subscription.category,
+  duration: subscription.duration,
+  name: subscription.name,
+  email: subscription.email,
+  subscription_mail: subscription.subscriptionMail,
+  subscription_password: subscription.subscriptionPassword,
+  two_factor_secret: subscription.twoFactorSecret,
+  whatsapp: subscription.whatsapp,
+  facebook: subscription.facebook,
+  countrycode: subscription.countryCode,
+  startdate: subscription.startDate,
+  enddate: subscription.endDate,
+  payment: subscription.payment,
+  workspace: subscription.workspace,
+});
+
 const toLegacyDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   service: subscription.service,
   category: subscription.category,
@@ -494,8 +512,13 @@ const isMissingCredentialsColumnError = (error: { message?: string | null; detai
   const blob = `${error.code ?? ''} ${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
 
   return blob.includes('subscriptionmail')
+    || blob.includes('subscription_mail')
     || blob.includes('subscriptionpassword')
+    || blob.includes('subscription_password')
     || blob.includes('twofactorsecret')
+    || blob.includes('two_factor_secret')
+    || blob.includes('column')
+    || blob.includes('does not exist')
     || blob.includes('schema cache');
 };
 
@@ -1177,11 +1200,23 @@ function App() {
       updatedby: currentUser.id,
     };
 
+    const snakeCasePayload = {
+      ...toDbSubscriptionPayloadSnakeCase(preparedFormData),
+      updatedat: now,
+      updatedby: currentUser.id,
+    };
+
     const legacyPayload = {
       ...toLegacyDbSubscriptionPayload(preparedFormData),
       updatedat: now,
       updatedby: currentUser.id,
     };
+
+    const hasCredentialInputs = Boolean(
+      preparedFormData.subscriptionMail.trim()
+      || preparedFormData.subscriptionPassword.trim()
+      || preparedFormData.twoFactorSecret?.trim(),
+    );
 
     const executeSubscriptionMutation = async (targetPayload: Record<string, unknown>) => {
       if (editingId) {
@@ -1191,15 +1226,40 @@ function App() {
       return supabase.from('subscriptions').insert([{ ...targetPayload, user_id: currentUser.id, createdat: now }]);
     };
 
-    let { error } = await executeSubscriptionMutation(payload);
+    let error: { message?: string | null; details?: string | null; hint?: string | null; code?: string | null } | null = null;
 
-    if (error && isMissingCredentialsColumnError(error)) {
+    const payloadAttempts: Record<string, unknown>[] = [payload, snakeCasePayload];
+
+    for (const targetPayload of payloadAttempts) {
+      const result = await executeSubscriptionMutation(targetPayload);
+
+      if (!result.error) {
+        error = null;
+        break;
+      }
+
+      if (!isMissingCredentialsColumnError(result.error)) {
+        error = result.error;
+        break;
+      }
+
+      error = result.error;
+    }
+
+    if (error && !hasCredentialInputs) {
       const retryResult = await executeSubscriptionMutation(legacyPayload);
       error = retryResult.error;
     }
 
     if (error) {
-      alert(error.message);
+      if (hasCredentialInputs && isMissingCredentialsColumnError(error)) {
+        alert(lang === 'ar'
+          ? 'تعذر حفظ بيانات الاشتراك الجديدة. تأكد من تنفيذ تحديث قاعدة البيانات لإضافة أعمدة بيانات الاشتراك.'
+          : 'Could not save the new subscription credential fields. Run the database migration to add the required columns.');
+      } else {
+        alert(error.message ?? (lang === 'ar' ? 'حدث خطأ أثناء الحفظ.' : 'Failed to save changes.'));
+      }
+
       return;
     }
 
@@ -1211,7 +1271,7 @@ function App() {
 
     resetForm();
     setTimeout(() => setSuccessMessage(''), 3000);
-  }, [currentUser, editingId, formData, resetForm, t.saved, t.updated]);
+  }, [currentUser, editingId, formData, lang, resetForm, t.saved, t.updated]);
 
   const handleRenewClick = (subscription: Subscription) => {
     const newStartDate = subscription.endDate;
