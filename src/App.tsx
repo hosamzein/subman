@@ -29,6 +29,14 @@ const SERVICE_CATEGORY_OPTIONS: Record<string, string[]> = {
   Gemini: ['pro', 'plus', 'ultra'],
 };
 const getDefaultCategoryForService = (service: string) => SERVICE_CATEGORY_OPTIONS[service]?.[0] ?? '';
+const SUBSCRIPTION_CREDENTIALS_CACHE_KEY = 'subman_subscription_credentials_v1';
+type SubscriptionCredentialsCacheValue = {
+  subscriptionMail: string;
+  subscriptionPassword: string;
+  twoFactorSecret: string;
+  updatedAt: number;
+};
+type SubscriptionCredentialsCache = Record<string, SubscriptionCredentialsCacheValue>;
 const COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#9b59b6'];
 const DARK_COLORS = ['#8edcff', '#6ee7b7', '#facc15', '#fb923c', '#c084fc'];
 const COUNTRY_CODES = [
@@ -489,6 +497,72 @@ const toDbSubscriptionPayloadSnakeCase = (subscription: SubscriptionFormData) =>
   workspace: subscription.workspace,
 });
 
+const readSubscriptionCredentialsCache = (): SubscriptionCredentialsCache => {
+  try {
+    const raw = localStorage.getItem(SUBSCRIPTION_CREDENTIALS_CACHE_KEY);
+
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    return parsed as SubscriptionCredentialsCache;
+  } catch {
+    return {};
+  }
+};
+
+const writeSubscriptionCredentialsCache = (cache: SubscriptionCredentialsCache) => {
+  try {
+    localStorage.setItem(SUBSCRIPTION_CREDENTIALS_CACHE_KEY, JSON.stringify(cache));
+  } catch {
+    // Ignore storage errors.
+  }
+};
+
+const saveSubscriptionCredentialsToCache = (subscriptionId: number, credentials: Pick<Subscription, 'subscriptionMail' | 'subscriptionPassword' | 'twoFactorSecret'>) => {
+  const cache = readSubscriptionCredentialsCache();
+  const key = String(subscriptionId);
+  const nextValue = {
+    subscriptionMail: credentials.subscriptionMail?.trim() ?? '',
+    subscriptionPassword: credentials.subscriptionPassword?.trim() ?? '',
+    twoFactorSecret: credentials.twoFactorSecret?.trim() ?? '',
+  };
+
+  if (!nextValue.subscriptionMail && !nextValue.subscriptionPassword && !nextValue.twoFactorSecret) {
+    delete cache[key];
+    writeSubscriptionCredentialsCache(cache);
+    return;
+  }
+
+  cache[key] = {
+    ...nextValue,
+    updatedAt: Date.now(),
+  };
+  writeSubscriptionCredentialsCache(cache);
+};
+
+const mergeSubscriptionCredentialsFromCache = (subscription: Subscription): Subscription => {
+  const cache = readSubscriptionCredentialsCache();
+  const cachedValue = cache[String(subscription.id)];
+
+  if (!cachedValue) {
+    return subscription;
+  }
+
+  return {
+    ...subscription,
+    subscriptionMail: subscription.subscriptionMail || cachedValue.subscriptionMail,
+    subscriptionPassword: subscription.subscriptionPassword || cachedValue.subscriptionPassword,
+    twoFactorSecret: subscription.twoFactorSecret || cachedValue.twoFactorSecret,
+  };
+};
+
 const toLegacyDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   service: subscription.service,
   category: subscription.category,
@@ -913,7 +987,7 @@ function App() {
 
       const normalizedProfiles = (profilesResult.data as DbProfile[] | null)?.map(normalizeProfile) ?? [];
 
-      setSubscriptions((subscriptionsResult.data as DbSubscription[] | null)?.map(normalizeSubscription) ?? []);
+      setSubscriptions((subscriptionsResult.data as DbSubscription[] | null)?.map(normalizeSubscription).map(mergeSubscriptionCredentialsFromCache) ?? []);
       setAllUsers(attachAuthMethods(normalizedProfiles, authMethodsResult.data as UserAuthMethodRow[] | null));
       setWaMessage(settingsResult.data?.value ?? DEFAULT_WHATSAPP_MESSAGE);
       setNotifications((notificationsResult.data as DbNotificationRecord[] | null)?.map(normalizeNotification) ?? []);
@@ -1220,13 +1294,15 @@ function App() {
 
     const executeSubscriptionMutation = async (targetPayload: Record<string, unknown>) => {
       if (editingId) {
-        return supabase.from('subscriptions').update(targetPayload).eq('id', editingId);
+        return supabase.from('subscriptions').update(targetPayload).eq('id', editingId).select('id').single<{ id: number }>();
       }
 
-      return supabase.from('subscriptions').insert([{ ...targetPayload, user_id: currentUser.id, createdat: now }]);
+      return supabase.from('subscriptions').insert([{ ...targetPayload, user_id: currentUser.id, createdat: now }]).select('id').single<{ id: number }>();
     };
 
     let error: { message?: string | null; details?: string | null; hint?: string | null; code?: string | null } | null = null;
+    let savedSubscriptionId: number | null = editingId ?? null;
+    let usedLocalCredentialsFallback = false;
 
     const payloadAttempts: Record<string, unknown>[] = [payload, snakeCasePayload];
 
@@ -1235,6 +1311,7 @@ function App() {
 
       if (!result.error) {
         error = null;
+        savedSubscriptionId = result.data?.id ?? editingId ?? null;
         break;
       }
 
@@ -1246,28 +1323,38 @@ function App() {
       error = result.error;
     }
 
-    if (error && !hasCredentialInputs) {
+    if (error) {
       const retryResult = await executeSubscriptionMutation(legacyPayload);
-      error = retryResult.error;
+      if (!retryResult.error) {
+        error = null;
+        savedSubscriptionId = retryResult.data?.id ?? editingId ?? null;
+        usedLocalCredentialsFallback = hasCredentialInputs;
+      } else {
+        error = retryResult.error;
+      }
     }
 
     if (error) {
-      if (hasCredentialInputs && isMissingCredentialsColumnError(error)) {
-        alert(lang === 'ar'
-          ? 'تعذر حفظ بيانات الاشتراك الجديدة. تأكد من تنفيذ تحديث قاعدة البيانات لإضافة أعمدة بيانات الاشتراك.'
-          : 'Could not save the new subscription credential fields. Run the database migration to add the required columns.');
-      } else {
-        alert(error.message ?? (lang === 'ar' ? 'حدث خطأ أثناء الحفظ.' : 'Failed to save changes.'));
-      }
+      alert(error.message ?? (lang === 'ar' ? 'حدث خطأ أثناء الحفظ.' : 'Failed to save changes.'));
 
       return;
     }
 
-    if (editingId) {
-      setSuccessMessage(t.updated);
-    } else {
-      setSuccessMessage(t.saved);
+    if (savedSubscriptionId !== null) {
+      saveSubscriptionCredentialsToCache(savedSubscriptionId, {
+        subscriptionMail: preparedFormData.subscriptionMail,
+        subscriptionPassword: preparedFormData.subscriptionPassword,
+        twoFactorSecret: preparedFormData.twoFactorSecret ?? '',
+      });
     }
+
+    const successText = usedLocalCredentialsFallback
+      ? (lang === 'ar'
+          ? 'تم حفظ الاشتراك. تم حفظ بيانات الاشتراك الجديدة محليًا حتى يتم تحديث قاعدة البيانات.'
+          : 'Subscription saved. New credential fields were stored locally until database columns are migrated.')
+      : (editingId ? t.updated : t.saved);
+
+    setSuccessMessage(successText);
 
     resetForm();
     setTimeout(() => setSuccessMessage(''), 3000);
