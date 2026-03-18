@@ -3,51 +3,67 @@
   display: grid;
   place-items: center;
   padding: 24px;
-  background: radial-gradient(circle at top, #223350 0%, #121a2a 48%, #0c111b 100%);
-  color: #ecf3ff;
-}
-
-body.mfa-light-theme .mfa-page {
   background: radial-gradient(circle at top, #edf6ff 0%, #d9e9ff 45%, #c7dcf8 100%);
   color: #122745;
 }
 
 .mfa-shell {
-  width: min(560px, 100%);
+  width: min(760px, 100%);
   border-radius: 16px;
   padding: 24px;
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 20px 50px rgba(3, 7, 18, 0.35);
-}
-
-.mfa-shell.dark {
-  background: rgba(12, 17, 28, 0.72);
-}
-
-.mfa-shell.light {
+  border: 1px solid rgba(21, 48, 86, 0.16);
   background: rgba(255, 255, 255, 0.78);
-  border-color: rgba(21, 48, 86, 0.16);
   box-shadow: 0 18px 36px rgba(26, 61, 110, 0.14);
 }
 
-.mfa-header {
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
+.mfa-secret-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
   gap: 12px;
-  margin-bottom: 14px;
+  align-items: center;
 }
 
-.mfa-header-actions {
+.mfa-input {
+  width: 100%;
+  box-sizing: border-box;
+  border-radius: 12px;
+  border: 1px solid rgba(18, 39, 69, 0.18);
+  background: rgba(255, 255, 255, 0.75);
+  color: inherit;
+  padding: 12px 14px;
+  font-size: 1rem;
+}
+
+.mfa-input:focus {
+  outline: 2px solid #57a7ff;
+  outline-offset: 1px;
+}
+
+.mfa-inline-code {
+  min-width: 170px;
+  border-radius: 12px;
+  border: 1px solid rgba(18, 39, 69, 0.18);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 12px 14px;
+  text-align: center;
+  font-size: 1.4rem;
+  line-height: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+
+.mfa-actions {
+  margin-top: 14px;
   display: flex;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
-.mfa-header-actions button,
 .mfa-btn {
-  border: 1px solid rgba(160, 178, 212, 0.35);
-  background: rgba(255, 255, 255, 0.08);
+  min-width: 42px;
+  border: 1px solid rgba(18, 39, 69, 0.18);
+  background: rgba(18, 39, 69, 0.06);
   color: inherit;
   border-radius: 10px;
   padding: 10px;
@@ -69,48 +85,9 @@ body.mfa-light-theme .mfa-page {
   fill: currentColor;
 }
 
-.mfa-shell.light .mfa-header-actions button,
-.mfa-shell.light .mfa-btn {
-  background: rgba(18, 39, 69, 0.06);
-  border-color: rgba(18, 39, 69, 0.18);
-}
-
-.mfa-header-actions button:hover,
 .mfa-btn:hover {
   transform: translateY(-1px);
   border-color: rgba(144, 196, 255, 0.65);
-}
-
-.mfa-input {
-  width: 100%;
-  box-sizing: border-box;
-  border-radius: 12px;
-  border: 1px solid rgba(160, 178, 212, 0.42);
-  background: rgba(255, 255, 255, 0.07);
-  color: inherit;
-  padding: 12px 14px;
-  font-size: 1rem;
-}
-
-.mfa-shell.light .mfa-input {
-  background: rgba(255, 255, 255, 0.75);
-  border-color: rgba(18, 39, 69, 0.18);
-}
-
-.mfa-input:focus {
-  outline: 2px solid #57a7ff;
-  outline-offset: 1px;
-}
-
-.mfa-actions {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.mfa-btn {
-  min-width: 42px;
 }
 
 .mfa-btn-primary {
@@ -124,34 +101,8 @@ body.mfa-light-theme .mfa-page {
   cursor: not-allowed;
 }
 
-.mfa-code-card {
-  margin-top: 18px;
-  border-radius: 14px;
-  padding: 16px;
-  background: rgba(7, 12, 22, 0.56);
-  border: 1px solid rgba(160, 178, 212, 0.28);
-}
-
-.mfa-shell.light .mfa-code-card {
-  background: rgba(255, 255, 255, 0.78);
-  border-color: rgba(18, 39, 69, 0.14);
-}
-
-.mfa-code-value {
-  font-size: clamp(2rem, 6vw, 2.4rem);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
-  letter-spacing: 0.12em;
-  margin: 8px 0;
-  font-weight: 700;
-}
-
-.mfa-countdown {
-  font-size: 0.92rem;
-  opacity: 0.9;
-}
-
 .mfa-progress-track {
-  margin-top: 10px;
+  margin-top: 14px;
   height: 8px;
   border-radius: 999px;
   background: rgba(163, 188, 223, 0.22);
@@ -171,18 +122,10 @@ body.mfa-light-theme .mfa-page {
 }
 
 .mfa-feedback-error {
-  color: #ff8b8b;
-}
-
-.mfa-shell.light .mfa-feedback-error {
   color: #b91c1c;
 }
 
 .mfa-feedback-success {
-  color: #78f5bc;
-}
-
-.mfa-shell.light .mfa-feedback-success {
   color: #0f766e;
 }
 
@@ -195,7 +138,11 @@ body.mfa-light-theme .mfa-page {
     padding: 16px;
   }
 
-  .mfa-header {
-    justify-content: flex-end;
+  .mfa-secret-row {
+    grid-template-columns: 1fr;
+  }
+
+  .mfa-inline-code {
+    min-width: 0;
   }
 }
