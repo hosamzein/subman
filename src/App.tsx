@@ -471,6 +471,34 @@ const toDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
   workspace: subscription.workspace,
 });
 
+const toLegacyDbSubscriptionPayload = (subscription: SubscriptionFormData) => ({
+  service: subscription.service,
+  category: subscription.category,
+  duration: subscription.duration,
+  name: subscription.name,
+  email: subscription.email,
+  whatsapp: subscription.whatsapp,
+  facebook: subscription.facebook,
+  countrycode: subscription.countryCode,
+  startdate: subscription.startDate,
+  enddate: subscription.endDate,
+  payment: subscription.payment,
+  workspace: subscription.workspace,
+});
+
+const isMissingCredentialsColumnError = (error: { message?: string | null; details?: string | null; hint?: string | null; code?: string | null } | null) => {
+  if (!error) {
+    return false;
+  }
+
+  const blob = `${error.code ?? ''} ${error.message ?? ''} ${error.details ?? ''} ${error.hint ?? ''}`.toLowerCase();
+
+  return blob.includes('subscriptionmail')
+    || blob.includes('subscriptionpassword')
+    || blob.includes('twofactorsecret')
+    || blob.includes('schema cache');
+};
+
 const formatDateDisplay = (dateStr: string) => {
   if (!dateStr) return '';
 
@@ -1149,11 +1177,35 @@ function App() {
       updatedby: currentUser.id,
     };
 
+    const legacyPayload = {
+      ...toLegacyDbSubscriptionPayload(preparedFormData),
+      updatedat: now,
+      updatedby: currentUser.id,
+    };
+
+    const executeSubscriptionMutation = async (targetPayload: Record<string, unknown>) => {
+      if (editingId) {
+        return supabase.from('subscriptions').update(targetPayload).eq('id', editingId);
+      }
+
+      return supabase.from('subscriptions').insert([{ ...targetPayload, user_id: currentUser.id, createdat: now }]);
+    };
+
+    let { error } = await executeSubscriptionMutation(payload);
+
+    if (error && isMissingCredentialsColumnError(error)) {
+      const retryResult = await executeSubscriptionMutation(legacyPayload);
+      error = retryResult.error;
+    }
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
     if (editingId) {
-      await supabase.from('subscriptions').update(payload).eq('id', editingId);
       setSuccessMessage(t.updated);
     } else {
-      await supabase.from('subscriptions').insert([{ ...payload, user_id: currentUser.id, createdat: now }]);
       setSuccessMessage(t.saved);
     }
 
