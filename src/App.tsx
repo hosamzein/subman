@@ -975,20 +975,44 @@ function App() {
   }, []);
 
   const copySubscriberData = useCallback(async (subscription: Subscription) => {
-    const rows = [
-      `ID: ${subscription.id}`,
-      `${t.service}: ${subscription.service}`,
-      `${t.category}: ${subscription.category || SERVICE_CATEGORIES[subscription.service] || ''}`,
-      `${t.name}: ${subscription.name}`,
-      `${t.email}: ${subscription.email || '-'}`,
-      `${t.whatsapp}: ${subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '-'}`,
-      `${t.facebook}: ${subscription.facebook || '-'}`,
-      `${t.duration}: ${subscription.duration}`,
-      `${t.startDate}: ${subscription.startDate}`,
-      `${t.endDate}: ${subscription.endDate}`,
-      `${t.amount}: ${subscription.payment}`,
-      `${t.workspace}: ${subscription.workspace || '-'}`,
-    ];
+    const rows: string[] = [];
+    const addRow = (label: string, value: string | number | null | undefined) => {
+      if (value === null || value === undefined) {
+        return;
+      }
+
+      if (typeof value === 'string') {
+        const normalized = value.trim();
+
+        if (!normalized || normalized === '-') {
+          return;
+        }
+
+        rows.push(`${label}: ${normalized}`);
+        return;
+      }
+
+      rows.push(`${label}: ${value}`);
+    };
+
+    const durationLabel = subscription.duration === 'yearly'
+      ? t.yearly
+      : subscription.duration === 'quarterly'
+        ? t.quarterly
+        : t.monthly;
+
+    addRow(t.id, subscription.id);
+    addRow(t.service, subscription.service);
+    addRow(t.category, subscription.category || SERVICE_CATEGORIES[subscription.service] || '');
+    addRow(t.name, subscription.name);
+    addRow(t.email, subscription.email);
+    addRow(t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
+    addRow(t.facebook, subscription.facebook);
+    addRow(t.duration, durationLabel);
+    addRow(t.startDate, subscription.startDate);
+    addRow(t.endDate, subscription.endDate);
+    addRow(t.amount, subscription.payment);
+    addRow(t.workspace, subscription.workspace);
 
     if (subscription.twoFactorSecret) {
       rows.push(`2FA Secret: ${subscription.twoFactorSecret}`);
@@ -1001,7 +1025,7 @@ function App() {
     await navigator.clipboard.writeText(rows.join('\n'));
     setSuccessMessage(t.copyFullData);
     setTimeout(() => setSuccessMessage(''), 2500);
-  }, [t.amount, t.category, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.name, t.service, t.startDate, t.whatsapp, t.workspace]);
+  }, [t.amount, t.category, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.service, t.startDate, t.whatsapp, t.workspace, t.yearly]);
 
   const sendWhatsApp = (sub: Subscription) => {
     if (sub.service !== GROK_SERVICE || !sub.whatsapp) {
