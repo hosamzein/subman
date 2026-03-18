@@ -1719,8 +1719,24 @@ function App() {
                                 )}
                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <div className="subscriber-actions">
-                                    {isGrokSubscriber && s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
-                                    {resolveMessengerUrl(s.facebook) && <button onClick={() => window.open(resolveMessengerUrl(s.facebook), '_blank')} title={t.openMessenger}>Ⓜ️</button>}
+                                    {isGrokSubscriber && s.whatsapp && (
+                                      <button onClick={() => sendWhatsApp(s)} title={t.whatsapp} aria-label={t.whatsapp}>
+                                        <span className="brand-icon brand-icon-whatsapp" aria-hidden="true">
+                                          <svg viewBox="0 0 32 32" focusable="false">
+                                            <path d="M16 3.2A12.8 12.8 0 0 0 4.6 21.9L3.1 28.9l7.2-1.4A12.8 12.8 0 1 0 16 3.2Zm0 23.2a10.4 10.4 0 0 1-5.3-1.4l-.4-.3-4.2.8.8-4.1-.3-.4A10.4 10.4 0 1 1 16 26.4Zm5.7-7.8c-.3-.2-1.8-.9-2-1-.3-.1-.5-.2-.8.2-.2.3-.9 1-.9 1.1-.2.2-.3.2-.6.1a8.5 8.5 0 0 1-2.5-1.6 9.2 9.2 0 0 1-1.7-2.1c-.2-.3 0-.5.1-.6l.4-.5c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6 0-.2-.8-2-1.1-2.7-.3-.7-.6-.6-.8-.6h-.7a1.4 1.4 0 0 0-1 .5 4.2 4.2 0 0 0-1.3 3.1c0 1.8 1.3 3.5 1.5 3.8.2.2 2.7 4.2 6.7 5.7.9.4 1.7.6 2.2.8.9.3 1.8.3 2.5.2.7-.1 2.2-.9 2.5-1.8.3-.8.3-1.6.2-1.8-.1-.1-.3-.2-.6-.4Z" />
+                                          </svg>
+                                        </span>
+                                      </button>
+                                    )}
+                                    {resolveMessengerUrl(s.facebook) && (
+                                      <button onClick={() => window.open(resolveMessengerUrl(s.facebook), '_blank')} title={t.openMessenger} aria-label={t.openMessenger}>
+                                        <span className="brand-icon brand-icon-messenger" aria-hidden="true">
+                                          <svg viewBox="0 0 32 32" focusable="false">
+                                            <path d="M16 3.2C9 3.2 3.4 8.4 3.4 14.9c0 3.8 1.9 7.2 4.9 9.4v4.5l4.3-2.4c1.1.3 2.2.4 3.4.4 7 0 12.6-5.2 12.6-11.7S23 3.2 16 3.2Zm1.3 15.7-3.2-3.4-6.1 3.4 6.8-7.2 3.2 3.4 6.1-3.4-6.8 7.2Z" />
+                                          </svg>
+                                        </span>
+                                      </button>
+                                    )}
                                     <button onClick={() => { void copySubscriberData(s); }} title={t.copyFullData}>📋</button>
                                     <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
                                     <button onClick={() => openSubscriptionEditor(s)} title={t.update}>✏️</button>

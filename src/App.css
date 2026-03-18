@@ -1461,6 +1461,37 @@ body::before {
   background: rgba(255, 255, 255, 0.09) !important;
 }
 
+.brand-icon {
+  width: 1.15rem;
+  height: 1.15rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+  fill: currentColor;
+}
+
+.brand-icon-whatsapp {
+  color: #1fae4b;
+}
+
+.brand-icon-messenger {
+  color: #1877f2;
+}
+
+.dark-theme .brand-icon-whatsapp {
+  color: #3ad974;
+}
+
+.dark-theme .brand-icon-messenger {
+  color: #69a7ff;
+}
+
 .dark-theme .subscriber-actions button:hover {
   background: rgba(255, 255, 255, 0.12) !important;
 }
