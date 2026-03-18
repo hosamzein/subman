@@ -47,6 +47,10 @@ export type DbSubscription = {
   email: string;
   whatsapp: string;
   facebook: string;
+  twofactorsecret?: string | null;
+  twofactorcode?: string | null;
+  two_factor_secret?: string | null;
+  two_factor_code?: string | null;
   countrycode: string;
   startdate: string;
   enddate: string;
@@ -67,6 +71,8 @@ export type Subscription = {
   email: string;
   whatsapp: string;
   facebook: string;
+  twoFactorSecret?: string;
+  twoFactorCode?: string;
   countryCode: string;
   startDate: string;
   endDate: string;

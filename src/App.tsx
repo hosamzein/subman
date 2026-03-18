@@ -74,6 +74,7 @@ const translations = {
     add: "إضافة",
     name: "الاسم",
     email: "البريد",
+    facebook: "حساب فيسبوك",
     whatsapp: "واتساب",
     startDate: "تاريخ البدء",
     endDate: "تاريخ الانتهاء",
@@ -105,6 +106,8 @@ const translations = {
     yearly: "سنوي",
     category: "الفئة",
     renew: "تجديد",
+    copyFullData: "نسخ كل البيانات",
+    openMessenger: "فتح ماسنجر",
     subDetail: "تفاصيل الاشتراك",
     subscriberDetail: "بيانات المشترك",
     manageServiceAccounts: "مكتبة حسابات الخدمات",
@@ -213,6 +216,7 @@ const translations = {
     add: "Add",
     name: "Name",
     email: "Email",
+    facebook: "Facebook Account",
     whatsapp: "WhatsApp",
     startDate: "Start Date",
     endDate: "End Date",
@@ -244,6 +248,8 @@ const translations = {
     yearly: "Yearly",
     category: "Category",
     renew: "Renew",
+    copyFullData: "Copy full data",
+    openMessenger: "Open Messenger",
     subDetail: "Subscription Details",
     subscriberDetail: "Subscriber Details",
     manageServiceAccounts: "Service Accounts Library",
@@ -326,7 +332,6 @@ const translations = {
 type Language = keyof typeof translations;
 type Theme = 'dark' | 'light';
 type View = 'login' | 'dashboard' | 'subscribers' | 'twoFactorTool' | 'users' | 'notifications' | 'settings';
-type TableDensity = 'comfortable' | 'compact';
 
 type SubscriptionFormData = Pick<
   Subscription,
@@ -420,6 +425,8 @@ const normalizeSubscription = (subscription: DbSubscription): Subscription => ({
   email: subscription.email,
   whatsapp: subscription.whatsapp,
   facebook: subscription.facebook,
+  twoFactorSecret: subscription.twofactorsecret ?? subscription.two_factor_secret ?? '',
+  twoFactorCode: subscription.twofactorcode ?? subscription.two_factor_code ?? '',
   countryCode: subscription.countrycode,
   startDate: subscription.startdate,
   endDate: subscription.enddate,
@@ -625,7 +632,6 @@ function App() {
   const [editingId, setEditingId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [subscriberQuickFilter, setSubscriberQuickFilter] = useState<SubscriberQuickFilter>('all');
-  const [subscriberDensity, setSubscriberDensity] = useState<TableDensity>('comfortable');
   const [subscriberColumns, setSubscriberColumns] = useState<SubscriberColumnVisibility>({
     category: true,
     contact: true,
@@ -638,7 +644,6 @@ function App() {
   const [twoFactorError, setTwoFactorError] = useState('');
   const [twoFactorExpiryAt, setTwoFactorExpiryAt] = useState<number | null>(null);
   const [twoFactorCountdown, setTwoFactorCountdown] = useState(600);
-  const [showOnlyRenewals, setShowOnlyRenewals] = useState(false);
 
   const [statsFromDate, setStatsFromDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().split('T')[0]);
   const [statsToDate, setStatsToDate] = useState(new Date(new Date().getFullYear(), new Date().getMonth() + 1, 0).toISOString().split('T')[0]);
@@ -923,6 +928,81 @@ function App() {
     setTwoFactorCountdown(600);
   }, []);
 
+  const resolveMessengerUrl = useCallback((facebookValue: string) => {
+    const raw = facebookValue.trim();
+
+    if (!raw) {
+      return '';
+    }
+
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      try {
+        const parsed = new URL(raw);
+
+        if (parsed.hostname.includes('m.me')) {
+          return raw;
+        }
+
+        if (parsed.hostname.includes('facebook.com')) {
+          if (parsed.pathname === '/profile.php') {
+            const profileId = parsed.searchParams.get('id');
+
+            if (profileId) {
+              return `https://m.me/${profileId}`;
+            }
+          }
+
+          const handle = parsed.pathname.split('/').filter(Boolean)[0];
+
+          if (handle) {
+            return `https://m.me/${handle}`;
+          }
+        }
+      } catch {
+        return '';
+      }
+
+      return '';
+    }
+
+    const normalized = raw.replace(/^@+/, '').replace(/^facebook\.com\//i, '').replace(/^m\.me\//i, '').replace(/\/$/, '');
+
+    if (!normalized) {
+      return '';
+    }
+
+    return `https://m.me/${normalized}`;
+  }, []);
+
+  const copySubscriberData = useCallback(async (subscription: Subscription) => {
+    const rows = [
+      `ID: ${subscription.id}`,
+      `${t.service}: ${subscription.service}`,
+      `${t.category}: ${subscription.category || SERVICE_CATEGORIES[subscription.service] || ''}`,
+      `${t.name}: ${subscription.name}`,
+      `${t.email}: ${subscription.email || '-'}`,
+      `${t.whatsapp}: ${subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '-'}`,
+      `${t.facebook}: ${subscription.facebook || '-'}`,
+      `${t.duration}: ${subscription.duration}`,
+      `${t.startDate}: ${subscription.startDate}`,
+      `${t.endDate}: ${subscription.endDate}`,
+      `${t.amount}: ${subscription.payment}`,
+      `${t.workspace}: ${subscription.workspace || '-'}`,
+    ];
+
+    if (subscription.twoFactorSecret) {
+      rows.push(`2FA Secret: ${subscription.twoFactorSecret}`);
+    }
+
+    if (subscription.twoFactorCode) {
+      rows.push(`2FA Code: ${subscription.twoFactorCode}`);
+    }
+
+    await navigator.clipboard.writeText(rows.join('\n'));
+    setSuccessMessage(t.copyFullData);
+    setTimeout(() => setSuccessMessage(''), 2500);
+  }, [t.amount, t.category, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.name, t.service, t.startDate, t.whatsapp, t.workspace]);
+
   const sendWhatsApp = (sub: Subscription) => {
     if (sub.service !== GROK_SERVICE || !sub.whatsapp) {
       return;
@@ -1028,10 +1108,6 @@ function App() {
       const contactHealth = getContactHealth(sub);
       const isGrokSubscriber = sub.service === GROK_SERVICE;
 
-      if (showOnlyRenewals && !status.needsRenewal) {
-        return false;
-      }
-
       if (subscriberQuickFilter === 'expiringSoon' && status.className !== 'badge-warning') {
         return false;
       }
@@ -1056,12 +1132,12 @@ function App() {
         const query = searchQuery.toLowerCase();
         const searchableContact = isGrokSubscriber ? [sub.email, sub.whatsapp] : [];
 
-        return [sub.name, ...searchableContact, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
+        return [sub.name, ...searchableContact, sub.facebook, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
       }
 
       return true;
     });
-  }, [getStatus, searchQuery, showOnlyRenewals, subscriberQuickFilter, subscriptions]);
+  }, [getStatus, searchQuery, subscriberQuickFilter, subscriptions]);
 
   const analytics = useMemo<AnalyticsSummary>(() => {
     const from = new Date(statsFromDate);
@@ -1105,6 +1181,7 @@ function App() {
       [t.name]: s.name,
       [t.email]: s.service === GROK_SERVICE ? s.email : '',
       [t.whatsapp]: s.service === GROK_SERVICE && s.whatsapp ? `+${s.countryCode}${s.whatsapp}` : '',
+      [t.facebook]: s.facebook || '',
       [t.startDate]: formatDateDisplay(s.startDate),
       [t.endDate]: formatDateDisplay(s.endDate),
       [t.duration]: s.duration === 'yearly' ? t.yearly : s.duration === 'quarterly' ? t.quarterly : t.monthly,
@@ -1169,44 +1246,68 @@ function App() {
   const subscriberFormContactHealth = getContactHealth(formData);
   const normalizedPathname = window.location.pathname.replace(/\/+$/, '') || '/';
   const isPublicMfaRoute = normalizedPathname === '/mfa';
+  const twoFactorDisplayCode = twoFactorCode ? `${twoFactorCode.slice(0, 3)} ${twoFactorCode.slice(3, 6)}` : '--- ---';
+  const twoFactorExpiryProgress = twoFactorExpiryAt ? Math.max(0, Math.min(100, (twoFactorCountdown / 600) * 100)) : 0;
 
   const twoFactorToolView = (
-    <div className="settings-view animate-fade">
-      <h2 className="section-heading">{t.twoFactorGenerator}</h2>
-      <p className="view-banner">{t.twoFactorIntro}</p>
+    <div className="settings-view animate-fade two-factor-view">
+      <div className="two-factor-hero">
+        <h2 className="section-heading">{t.twoFactorGenerator}</h2>
+        <p className="view-banner">{t.twoFactorIntro}</p>
+      </div>
+
       <div className="form-card two-factor-card">
-        <div className="two-factor-hint">
-          <strong>{t.chatgptMfaHintTitle}</strong>
-          <p>{t.chatgptMfaHintBody}</p>
-        </div>
-        <div className="form-section">
-          <div className="form-row two-factor-row">
-            <div className="input-field-group" style={{ flex: 2 }}>
-              <label>{t.twoFactorSecretLabel}</label>
-              <input
-                type="text"
-                placeholder={t.twoFactorSecretLabel}
-                value={twoFactorSecret}
-                onChange={(e) => {
-                  setTwoFactorSecret(e.target.value);
-                  if (twoFactorError) {
-                    setTwoFactorError('');
-                  }
-                }}
-              />
+        <div className="two-factor-card-shell">
+          <div className="two-factor-hint">
+            <strong>{t.chatgptMfaHintTitle}</strong>
+            <p>{t.chatgptMfaHintBody}</p>
+          </div>
+
+          <div className="two-factor-grid">
+            <div className="two-factor-input-panel">
+              <div className="two-factor-panel-head">
+                <span className="two-factor-kicker">{lang === 'ar' ? 'المفتاح' : 'Secret'}</span>
+                <h3>{lang === 'ar' ? 'أدخل المفتاح المشترك' : 'Paste your shared secret'}</h3>
+              </div>
+
+              <div className="input-field-group two-factor-secret-group">
+                <label>{t.twoFactorSecretLabel}</label>
+                <input
+                  type="text"
+                  placeholder={t.twoFactorSecretLabel}
+                  value={twoFactorSecret}
+                  onChange={(e) => {
+                    setTwoFactorSecret(e.target.value);
+                    if (twoFactorError) {
+                      setTwoFactorError('');
+                    }
+                  }}
+                />
+              </div>
+
+              <div className="two-factor-actions">
+                <button type="button" className="btn-primary" onClick={() => void handleGenerateTwoFactorCode()}>{t.generateCode}</button>
+                <button type="button" className="btn-secondary" onClick={() => void handleCopyTwoFactorCode()} disabled={!twoFactorCode}>{t.copyCode}</button>
+                <button type="button" className="btn-secondary" onClick={handleClearTwoFactorTool}>{t.clear}</button>
+              </div>
+
+              {twoFactorError && <div className="two-factor-error">{twoFactorError}</div>}
             </div>
-            <div className="input-field-group two-factor-actions">
-              <button type="button" className="btn-primary" onClick={() => void handleGenerateTwoFactorCode()}>{t.generateCode}</button>
-              <button type="button" className="btn-secondary" onClick={() => void handleCopyTwoFactorCode()} disabled={!twoFactorCode}>{t.copyCode}</button>
-              <button type="button" className="btn-secondary" onClick={handleClearTwoFactorTool}>{t.clear}</button>
+
+            <div className="two-factor-output-panel">
+              <div className="two-factor-chip">{lang === 'ar' ? 'رمز لمرة واحدة' : 'One-time code'}</div>
+              <div className="two-factor-code">{twoFactorDisplayCode}</div>
+              <div className="two-factor-meta">{t.nextRefresh} {twoFactorCountdown} {t.seconds}</div>
+
+              <div className="two-factor-timer-track" aria-hidden="true">
+                <span className="two-factor-timer-fill" style={{ width: `${twoFactorExpiryProgress}%` }} />
+              </div>
+
+              <p className="two-factor-footnote">
+                {lang === 'ar' ? 'يتم التوليد داخل المتصفح فقط ولن يتم حفظ المفتاح.' : 'Generated locally in your browser. Your secret is never stored.'}
+              </p>
             </div>
           </div>
-        </div>
-
-        <div className="two-factor-output">
-          <div className="two-factor-code">{twoFactorCode || '------'}</div>
-          <div className="two-factor-meta">{t.nextRefresh} {twoFactorCountdown} {t.seconds}</div>
-          {twoFactorError && <div className="two-factor-error">{twoFactorError}</div>}
         </div>
       </div>
     </div>
@@ -1290,6 +1391,10 @@ function App() {
           <div className="input-field-group">
             <label>{t.name}</label>
             <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
+          </div>
+          <div className="input-field-group">
+            <label>{t.facebook}</label>
+            <input type="text" placeholder={t.facebook} value={formData.facebook} onChange={e => setFormData({ ...formData, facebook: e.target.value })} />
           </div>
           {isGrokService && (
             <>
@@ -1519,19 +1624,6 @@ function App() {
                       />
                     </div>
 
-                    <div>
-                      <label className="renewal-toggle">
-                        <span style={{ fontSize: '1.2rem', display: 'flex', alignItems: 'center' }}>📥</span>
-                        <span style={{ fontSize: '0.9rem', fontWeight: 600 }}>{t.renewalOnly}</span>
-                        <input
-                          type="checkbox"
-                          checked={showOnlyRenewals}
-                          onChange={e => setShowOnlyRenewals(e.target.checked)}
-                          style={{ margin: 0, cursor: 'pointer', marginLeft: '0.5rem' }}
-                        />
-                      </label>
-                    </div>
-
                     <button onClick={handleExport} className="btn-primary" style={{ padding: '0.75rem 1.5rem', width: 'auto', margin: 0 }} title={t.export}>
                       📊 {t.export}
                     </button>
@@ -1550,11 +1642,6 @@ function App() {
                           {filter === 'all' ? t.clearAll : filter === 'expiringSoon' ? t.expiringSoon : filter === 'expired' ? t.expired : filter === 'missingEmail' ? t.missingEmail : filter === 'missingWhatsapp' ? t.missingWhatsapp : t.missingContact}
                         </button>
                       ))}
-                    </div>
-                    <div className="filter-group">
-                      <span className="toolbar-label">{t.tableDensity}</span>
-                      <button type="button" className={`filter-chip ${subscriberDensity === 'comfortable' ? 'active' : ''}`} onClick={() => setSubscriberDensity('comfortable')}>{t.comfortable}</button>
-                      <button type="button" className={`filter-chip ${subscriberDensity === 'compact' ? 'active' : ''}`} onClick={() => setSubscriberDensity('compact')}>{t.compact}</button>
                     </div>
                     <div className="filter-group filter-checks">
                       <span className="toolbar-label">{t.visibleColumns}</span>
@@ -1575,8 +1662,8 @@ function App() {
                       </div>
                     )}
 
-                    <div className={`table-responsive ${subscriberDensity === 'compact' ? 'compact-table-wrap' : ''}`}>
-                      <table className={`admin-table ${subscriberDensity === 'compact' ? 'compact-table' : ''}`}>
+                    <div className="table-responsive">
+                      <table className="admin-table">
                         <thead>
                           <tr>
                             <th>ID</th>
@@ -1613,6 +1700,7 @@ function App() {
                                     <div className="contact-stack">
                                       <div>{isGrokSubscriber ? (s.email || '-') : '-'}</div>
                                       <div className="subscriber-meta">{isGrokSubscriber && s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-'}</div>
+                                      <div className="subscriber-meta">{s.facebook || '-'}</div>
                                       {isGrokSubscriber && <span className={`badge ${contactHealth === 'complete' ? 'badge-success' : contactHealth === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{contactHealth === 'complete' ? t.contactComplete : contactHealth === 'partial' ? t.contactPartial : t.contactMissing}</span>}
                                     </div>
                                   </td>
@@ -1632,6 +1720,8 @@ function App() {
                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <div className="subscriber-actions">
                                     {isGrokSubscriber && s.whatsapp && <button onClick={() => sendWhatsApp(s)} title={t.whatsapp}>💬</button>}
+                                    {resolveMessengerUrl(s.facebook) && <button onClick={() => window.open(resolveMessengerUrl(s.facebook), '_blank')} title={t.openMessenger}>Ⓜ️</button>}
+                                    <button onClick={() => { void copySubscriberData(s); }} title={t.copyFullData}>📋</button>
                                     <button onClick={() => handleRenewClick(s)} title={t.renew}>🔄</button>
                                     <button onClick={() => openSubscriptionEditor(s)} title={t.update}>✏️</button>
                                     <button onClick={() => { if (window.confirm(t.confirmDelete)) supabase.from('subscriptions').delete().eq('id', s.id); }} title={t.logout}>🗑️</button>

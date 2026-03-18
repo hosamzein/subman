@@ -936,13 +936,86 @@ body::before {
   overflow: auto;
 }
 
+.two-factor-view {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.two-factor-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
 .two-factor-card {
-  padding: 2rem;
+  padding: 0;
+  overflow: hidden;
+}
+
+.two-factor-card-shell {
+  padding: 1.5rem;
+  background:
+    radial-gradient(circle at 4% 6%, rgba(108, 184, 255, 0.14), transparent 24%),
+    radial-gradient(circle at 92% 96%, rgba(137, 156, 255, 0.12), transparent 28%);
+}
+
+.dark-theme .two-factor-card-shell {
+  background:
+    radial-gradient(circle at 4% 8%, rgba(91, 195, 255, 0.18), transparent 28%),
+    radial-gradient(circle at 93% 97%, rgba(112, 120, 255, 0.16), transparent 30%);
+}
+
+.two-factor-grid {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1.4fr) minmax(260px, 1fr);
+  align-items: stretch;
+}
+
+.two-factor-input-panel,
+.two-factor-output-panel {
+  border-radius: 22px;
+  border: 1px solid var(--border-color);
+  background: var(--surface-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.two-factor-input-panel {
+  padding: 1.2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.two-factor-panel-head h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  color: var(--text-main);
+}
+
+.two-factor-kicker {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-solid);
+}
+
+.two-factor-secret-group {
+  margin: 0;
+}
+
+.two-factor-secret-group input {
+  font-family: 'Cairo', sans-serif;
+  letter-spacing: 0.06em;
 }
 
 .two-factor-hint {
-  margin-bottom: 1.25rem;
-  padding: 1rem 1.1rem;
+  margin-bottom: 1rem;
+  padding: 0.95rem 1rem;
   border-radius: 18px;
   background: var(--surface-soft);
   border: 1px solid var(--border-color);
@@ -960,38 +1033,90 @@ body::before {
   line-height: 1.7;
 }
 
-.two-factor-row {
-  align-items: stretch;
-}
-
 .two-factor-actions {
-  justify-content: flex-end;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
 }
 
 .two-factor-actions .btn-primary,
 .two-factor-actions .btn-secondary {
   width: 100%;
+  min-height: 50px;
+  padding-inline: 0.75rem;
+  font-size: 0.95rem;
 }
 
-.two-factor-output {
+.two-factor-output-panel {
+  padding: 1.3rem 1rem;
   display: flex;
   flex-direction: column;
+  justify-content: center;
   align-items: center;
-  gap: 0.75rem;
-  padding: 2rem 1rem 0.5rem;
   text-align: center;
+  gap: 0.7rem;
+}
+
+.two-factor-chip {
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.42);
+  border-radius: 999px;
+  padding: 0.36rem 0.85rem;
+  font-size: 0.73rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent-solid);
+}
+
+.dark-theme .two-factor-chip {
+  background: rgba(5, 13, 26, 0.7);
 }
 
 .two-factor-code {
-  font-size: clamp(2.6rem, 6vw, 4.5rem);
+  font-size: clamp(2.2rem, 5.5vw, 4rem);
   font-weight: 900;
-  letter-spacing: 0.24em;
+  letter-spacing: 0.17em;
   color: var(--text-main);
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
 }
 
 .two-factor-meta {
   color: var(--text-muted);
   font-weight: 700;
+}
+
+.two-factor-timer-track {
+  width: min(320px, 92%);
+  height: 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border-color);
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+}
+
+.dark-theme .two-factor-timer-track {
+  background: rgba(3, 8, 17, 0.66);
+}
+
+.two-factor-timer-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0f2746 0%, #2f7cc0 45%, #61c0ff 100%);
+  transition: width 0.35s ease;
+}
+
+.dark-theme .two-factor-timer-fill {
+  background: linear-gradient(90deg, #8be7ff 0%, #6db5ff 45%, #9ca9ff 100%);
+}
+
+.two-factor-footnote {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  line-height: 1.6;
 }
 
 .two-factor-error {
@@ -1434,7 +1559,11 @@ body::before {
   .phone-field-row { flex-direction: column; direction: rtl; }
   .phone-field-row select { width: 100% !important; }
   .subscriber-search-grid { grid-template-columns: 1fr; }
-  .two-factor-code { letter-spacing: 0.14em; }
+  .two-factor-card-shell { padding: 1rem; }
+  .two-factor-grid { grid-template-columns: 1fr; }
+  .two-factor-actions { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .two-factor-actions .btn-secondary:last-child { grid-column: span 2; }
+  .two-factor-code { letter-spacing: 0.1em; font-size: clamp(2rem, 12vw, 2.8rem); }
   .modal-overlay { padding: 1rem; align-items: flex-start; }
   .modal-card { max-height: calc(100vh - 2rem); }
   .view-container { padding: 1.5rem 1rem; }
