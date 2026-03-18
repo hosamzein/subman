@@ -22,12 +22,13 @@ import './App.css';
 const AnalyticsCharts = lazy(() => import('./components/AnalyticsCharts'));
 
 const SERVICES = ['Grok', 'ChatGPT', 'Perplexity', 'Gemini'];
-const SERVICE_CATEGORIES: Record<string, string> = {
-  'Grok': 'Artificial Intelligence',
-  'ChatGPT': 'Artificial Intelligence',
-  'Perplexity': 'Artificial Intelligence',
-  'Gemini': 'Artificial Intelligence',
+const SERVICE_CATEGORY_OPTIONS: Record<string, string[]> = {
+  Grok: ['supergrok', 'business'],
+  ChatGPT: ['go', 'pro', 'plus', 'business'],
+  Perplexity: ['pro', 'enterprise pro', 'enterprise max'],
+  Gemini: ['pro', 'plus', 'ultra'],
 };
+const getDefaultCategoryForService = (service: string) => SERVICE_CATEGORY_OPTIONS[service]?.[0] ?? '';
 const COLORS = ['#3498db', '#2ecc71', '#f1c40f', '#e67e22', '#9b59b6'];
 const DARK_COLORS = ['#8edcff', '#6ee7b7', '#facc15', '#fb923c', '#c084fc'];
 const COUNTRY_CODES = [
@@ -40,7 +41,6 @@ const COUNTRY_CODES = [
 ];
 const SUPPORT_EMAIL = 'geminihossam8@gmail.com';
 const DEFAULT_WHATSAPP_MESSAGE = 'مرحباً {name}، نود تذكيرك بأن اشتراك {service} سينتهي بتاريخ {date}.';
-const GROK_SERVICE = 'Grok';
 
 const translations = {
   ar: {
@@ -78,7 +78,7 @@ const translations = {
     whatsapp: "واتساب",
     startDate: "تاريخ البدء",
     endDate: "تاريخ الانتهاء",
-    amount: "المبلغ",
+    amount: "قيمة الإشتراك",
     workspace: "مساحة العمل",
     actions: "أدوات",
     manageUsers: "إدارة المستخدمين والصلاحيات",
@@ -220,7 +220,7 @@ const translations = {
     whatsapp: "WhatsApp",
     startDate: "Start Date",
     endDate: "End Date",
-    amount: "Amount",
+    amount: "Subscription Value",
     workspace: "Workspace",
     actions: "Actions",
     manageUsers: "Manage Users & Permissions",
@@ -378,7 +378,7 @@ const getStoredTheme = (): Theme => {
 
 const createDefaultFormData = (): SubscriptionFormData => ({
   service: 'Grok',
-  category: 'Artificial Intelligence',
+  category: getDefaultCategoryForService('Grok'),
   duration: 'monthly',
   name: '',
   email: '',
@@ -392,19 +392,13 @@ const createDefaultFormData = (): SubscriptionFormData => ({
 });
 
 const sanitizeFormDataForService = (data: SubscriptionFormData, service: string): SubscriptionFormData => {
-  if (service !== GROK_SERVICE) {
-    return {
-      ...data,
-      service,
-      email: '',
-      whatsapp: '',
-      countryCode: COUNTRY_CODES[0]?.code ?? '20',
-    };
-  }
+  const availableCategories = SERVICE_CATEGORY_OPTIONS[service] ?? [];
+  const nextCategory = availableCategories.includes(data.category ?? '') ? (data.category ?? '') : getDefaultCategoryForService(service);
 
   return {
     ...data,
     service,
+    category: nextCategory,
   };
 };
 
@@ -548,11 +542,7 @@ const generateTotpCode = async (secret: string, period = 30, digits = 6) => {
   return (binary % (10 ** digits)).toString().padStart(digits, '0');
 };
 
-const getContactHealth = (subscription: Pick<Subscription, 'service' | 'email' | 'whatsapp'>) => {
-  if (subscription.service !== GROK_SERVICE) {
-    return 'complete';
-  }
-
+const getContactHealth = (subscription: Pick<Subscription, 'email' | 'whatsapp'>) => {
   const hasEmail = Boolean(subscription.email?.trim());
   const hasWhatsapp = Boolean(subscription.whatsapp?.trim());
 
@@ -1003,7 +993,7 @@ function App() {
 
     addRow(t.id, subscription.id);
     addRow(t.service, subscription.service);
-    addRow(t.category, subscription.category || SERVICE_CATEGORIES[subscription.service] || '');
+    addRow(t.category, subscription.category || getDefaultCategoryForService(subscription.service) || '');
     addRow(t.name, subscription.name);
     addRow(t.email, subscription.email);
     addRow(t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
@@ -1028,7 +1018,7 @@ function App() {
   }, [t.amount, t.category, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.service, t.startDate, t.whatsapp, t.workspace, t.yearly]);
 
   const sendWhatsApp = (sub: Subscription) => {
-    if (sub.service !== GROK_SERVICE || !sub.whatsapp) {
+    if (!sub.whatsapp) {
       return;
     }
 
@@ -1077,7 +1067,7 @@ function App() {
   const openSubscriptionEditor = useCallback((subscription: Subscription) => {
     setFormData(sanitizeFormDataForService({
       ...subscription,
-      category: subscription.category || SERVICE_CATEGORIES[subscription.service] || '',
+      category: subscription.category || getDefaultCategoryForService(subscription.service) || '',
       duration: subscription.duration || 'monthly',
     }, subscription.service));
     setEditingId(subscription.id);
@@ -1119,7 +1109,7 @@ function App() {
       startDate: newStartDate,
       endDate: newEndDate,
       duration: currentDuration,
-      category: subscription.category || SERVICE_CATEGORIES[subscription.service] || '',
+      category: subscription.category || getDefaultCategoryForService(subscription.service) || '',
     }, subscription.service));
 
     setEditingId(subscription.id);
@@ -1130,7 +1120,6 @@ function App() {
     return subscriptions.filter(sub => {
       const status = getStatus(sub.endDate);
       const contactHealth = getContactHealth(sub);
-      const isGrokSubscriber = sub.service === GROK_SERVICE;
 
       if (subscriberQuickFilter === 'expiringSoon' && status.className !== 'badge-warning') {
         return false;
@@ -1140,23 +1129,22 @@ function App() {
         return false;
       }
 
-      if (subscriberQuickFilter === 'missingEmail' && (!isGrokSubscriber || sub.email.trim())) {
+      if (subscriberQuickFilter === 'missingEmail' && sub.email.trim()) {
         return false;
       }
 
-      if (subscriberQuickFilter === 'missingWhatsapp' && (!isGrokSubscriber || sub.whatsapp.trim())) {
+      if (subscriberQuickFilter === 'missingWhatsapp' && sub.whatsapp.trim()) {
         return false;
       }
 
-      if (subscriberQuickFilter === 'missingContact' && (!isGrokSubscriber || contactHealth !== 'missing')) {
+      if (subscriberQuickFilter === 'missingContact' && contactHealth !== 'missing') {
         return false;
       }
 
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
-        const searchableContact = isGrokSubscriber ? [sub.email, sub.whatsapp] : [];
 
-        return [sub.name, ...searchableContact, sub.facebook, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
+        return [sub.name, sub.email, sub.whatsapp, sub.facebook, sub.service, sub.workspace].some((value) => readSearchableValue(value).includes(query));
       }
 
       return true;
@@ -1201,10 +1189,10 @@ function App() {
     const normalizedData = subscriptions.map(s => ({
       [t.id]: s.id,
       [t.service]: s.service,
-      [t.category]: s.category || SERVICE_CATEGORIES[s.service] || '',
+      [t.category]: s.category || getDefaultCategoryForService(s.service) || '',
       [t.name]: s.name,
-      [t.email]: s.service === GROK_SERVICE ? s.email : '',
-      [t.whatsapp]: s.service === GROK_SERVICE && s.whatsapp ? `+${s.countryCode}${s.whatsapp}` : '',
+      [t.email]: s.email,
+      [t.whatsapp]: s.whatsapp ? `+${s.countryCode}${s.whatsapp}` : '',
       [t.facebook]: s.facebook || '',
       [t.startDate]: formatDateDisplay(s.startDate),
       [t.endDate]: formatDateDisplay(s.endDate),
@@ -1340,7 +1328,8 @@ function App() {
   const renderSubscriberForm = (mode: 'create' | 'edit') => (
     <form onSubmit={(e) => { e.preventDefault(); void submitSubscriptionForm(); }} className="admin-form">
       {(() => {
-        const isGrokService = formData.service === GROK_SERVICE;
+        const categoryOptions = SERVICE_CATEGORY_OPTIONS[formData.service] ?? [];
+
         return (
           <>
       <div className="form-section">
@@ -1355,14 +1344,18 @@ function App() {
             <label>{t.service}</label>
             <select value={formData.service} onChange={e => {
               const newSvc = e.target.value;
-              setFormData(sanitizeFormDataForService({ ...formData, category: SERVICE_CATEGORIES[newSvc] || '' }, newSvc));
+              setFormData(sanitizeFormDataForService({ ...formData, category: getDefaultCategoryForService(newSvc) }, newSvc));
             }} required>
               {SERVICES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
           <div className="input-field-group">
             <label>{t.category}</label>
-            <input type="text" placeholder={t.category} value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })} />
+            <select value={formData.category || ''} onChange={e => setFormData({ ...formData, category: e.target.value })} required>
+              {categoryOptions.map((category) => (
+                <option key={category} value={category}>{category}</option>
+              ))}
+            </select>
           </div>
           <div className="input-field-group">
             <label>{t.duration}</label>
@@ -1417,26 +1410,19 @@ function App() {
             <input type="text" placeholder={t.name} value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} required />
           </div>
           <div className="input-field-group">
-            <label>{t.facebook}</label>
-            <input type="text" placeholder={t.facebook} value={formData.facebook} onChange={e => setFormData({ ...formData, facebook: e.target.value })} />
+            <input aria-label={t.facebook} type="text" placeholder={t.facebook} value={formData.facebook} onChange={e => setFormData({ ...formData, facebook: e.target.value })} />
           </div>
-          {isGrokService && (
-            <>
-              <div className="input-field-group">
-                <label>{t.email}</label>
-                <input type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
-              </div>
-              <div className="input-field-group">
-                <label>{t.whatsapp}</label>
-                <div className="phone-field-row">
-                  <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })}>
-                    {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
-                  </select>
-                  <input type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} />
-                </div>
-              </div>
-            </>
-          )}
+          <div className="input-field-group">
+            <input aria-label={t.email} type="email" placeholder={t.email} value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })} />
+          </div>
+          <div className="input-field-group">
+            <div className="phone-field-row">
+              <select style={{ width: '80px' }} value={formData.countryCode} onChange={e => setFormData({ ...formData, countryCode: e.target.value })}>
+                {COUNTRY_CODES.map(c => <option key={c.code} value={c.code}>+{c.code}</option>)}
+              </select>
+              <input aria-label={t.whatsapp} type="text" placeholder={t.whatsapp} value={formData.whatsapp} onChange={e => setFormData({ ...formData, whatsapp: e.target.value.replace(/\D/g, '') })} />
+            </div>
+          </div>
           <div className="input-field-group" style={{ flex: 1, justifyContent: 'flex-end', display: 'flex' }}>
             <button type="submit" className="login-submit-btn" style={{ margin: 0, height: '50px' }}>{mode === 'edit' ? t.update : t.add}</button>
             {mode === 'edit' && (
@@ -1444,12 +1430,10 @@ function App() {
             )}
           </div>
         </div>
-        {isGrokService && (
-          <div className={`quality-hint quality-${subscriberFormContactHealth}`}>
-            <strong>{subscriberFormContactHealth === 'complete' ? t.contactComplete : subscriberFormContactHealth === 'partial' ? t.contactPartial : t.contactMissing}</strong>
-            <span>{subscriberFormContactHealth === 'missing' ? t.contactMissingHint : ''}</span>
-          </div>
-        )}
+        <div className={`quality-hint quality-${subscriberFormContactHealth}`}>
+          <strong>{subscriberFormContactHealth === 'complete' ? t.contactComplete : subscriberFormContactHealth === 'partial' ? t.contactPartial : t.contactMissing}</strong>
+          <span>{subscriberFormContactHealth === 'missing' ? t.contactMissingHint : ''}</span>
+        </div>
       </div>
           </>
         );
@@ -1705,14 +1689,13 @@ function App() {
                           {filteredSubscriptions.map(s => {
                             const status = getStatus(s.endDate);
                             const contactHealth = getContactHealth(s);
-                            const isGrokSubscriber = s.service === GROK_SERVICE;
 
                             return (
                               <tr key={s.id}>
                                 <td style={{ fontWeight: 600 }} className="inline-muted">#{s.id}</td>
                                 <td>
                                   <div style={{ fontWeight: 700, fontSize: '1.1rem' }}>{s.service}</div>
-                                  {subscriberColumns.category && <div className="subscriber-meta">{s.category || SERVICE_CATEGORIES[s.service]}</div>}
+                                  {subscriberColumns.category && <div className="subscriber-meta">{s.category || getDefaultCategoryForService(s.service)}</div>}
                                   <span className={`badge ${status.className}`}>{status.label}</span>
                                 </td>
                                 <td>
@@ -1722,10 +1705,10 @@ function App() {
                                 {subscriberColumns.contact && (
                                   <td>
                                     <div className="contact-stack">
-                                      <div>{isGrokSubscriber ? (s.email || '-') : '-'}</div>
-                                      <div className="subscriber-meta">{isGrokSubscriber && s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-'}</div>
+                                      <div>{s.email || '-'}</div>
+                                      <div className="subscriber-meta">{s.whatsapp ? `+${s.countryCode} ${s.whatsapp}` : '-'}</div>
                                       <div className="subscriber-meta">{s.facebook || '-'}</div>
-                                      {isGrokSubscriber && <span className={`badge ${contactHealth === 'complete' ? 'badge-success' : contactHealth === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{contactHealth === 'complete' ? t.contactComplete : contactHealth === 'partial' ? t.contactPartial : t.contactMissing}</span>}
+                                      <span className={`badge ${contactHealth === 'complete' ? 'badge-success' : contactHealth === 'partial' ? 'badge-warning' : 'badge-danger'}`}>{contactHealth === 'complete' ? t.contactComplete : contactHealth === 'partial' ? t.contactPartial : t.contactMissing}</span>
                                     </div>
                                   </td>
                                 )}
@@ -1743,7 +1726,7 @@ function App() {
                                 )}
                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <div className="subscriber-actions">
-                                    {isGrokSubscriber && s.whatsapp && (
+                                    {s.whatsapp && (
                                       <button onClick={() => sendWhatsApp(s)} title={t.whatsapp} aria-label={t.whatsapp}>
                                         <span className="brand-icon brand-icon-whatsapp" aria-hidden="true">
                                           <svg viewBox="0 0 32 32" focusable="false">

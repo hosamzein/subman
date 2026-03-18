@@ -157,8 +157,8 @@ body::before {
 }
 
 .sidebar nav button {
-  width: 58px;
-  height: 58px;
+  width: 72px;
+  height: 72px;
   background: transparent;
   border: none;
   color: var(--text-muted);
@@ -173,7 +173,7 @@ body::before {
 }
 
 .nav-glyph {
-  font-size: 1.3rem;
+  font-size: 1.72rem;
   font-weight: 800;
   line-height: 1;
 }
@@ -1450,9 +1450,9 @@ body::before {
 .subscriber-actions button {
   background: transparent !important;
   border: none !important;
-  padding: 6px 10px;
+  padding: 8px 13px;
   margin: 0 2px;
-  font-size: 1.06rem;
+  font-size: 1.35rem;
   opacity: 0.6;
   transition: opacity 0.2s, background 0.2s;
 }
@@ -1463,8 +1463,8 @@ body::before {
 }
 
 .brand-icon {
-  width: 1.35rem;
-  height: 1.35rem;
+  width: 1.85rem;
+  height: 1.85rem;
   display: inline-flex;
   align-items: center;
   justify-content: center;
