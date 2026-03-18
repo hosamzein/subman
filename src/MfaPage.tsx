@@ -9,11 +9,10 @@ const TOTP_PERIOD_MS = TOTP_PERIOD_SECONDS * 1000;
 
 const translations = {
   ar: {
-    secret: 'Secret Code',
+    secret: 'Secret ID',
     generate: 'إنشاء الرمز',
     copy: 'نسخ الرمز',
     clear: 'مسح',
-    currentCode: 'الرمز الحالي',
     expiresIn: 'ينتهي خلال',
     seconds: 'ثانية',
     missingSecret: 'أدخل مفتاح 2FA أولاً',
@@ -21,14 +20,12 @@ const translations = {
     copied: 'تم نسخ الرمز',
     theme: 'المظهر',
     lang: 'اللغة',
-    neverStored: 'لا يتم حفظ المفتاح أو الرمز على الخادم.',
   },
   en: {
-    secret: 'Secret Code',
+    secret: 'Secret ID',
     generate: 'Generate Code',
     copy: 'Copy Code',
     clear: 'Clear',
-    currentCode: 'Current Code',
     expiresIn: 'Expires in',
     seconds: 'seconds',
     missingSecret: 'Enter a 2FA secret first',
@@ -36,7 +33,6 @@ const translations = {
     copied: 'Code copied',
     theme: 'Theme',
     lang: 'Language',
-    neverStored: 'Your secret and code are never stored on the server.',
   },
 } as const;
 
@@ -238,11 +234,11 @@ export default function MfaPage() {
           </div>
         </header>
 
-        <label className="mfa-label" htmlFor="mfa-secret-input">{t.secret}</label>
         <input
           id="mfa-secret-input"
           className="mfa-input"
           type="text"
+          aria-label={t.secret}
           value={secret}
           onChange={(event) => {
             setSecret(event.target.value);
@@ -272,7 +268,6 @@ export default function MfaPage() {
         </div>
 
         <section className="mfa-code-card" aria-live="polite">
-          <span className="mfa-code-label">{t.currentCode}</span>
           <div className="mfa-code-value">{codeForDisplay}</div>
           <div className="mfa-countdown">{t.expiresIn} {countdown} {t.seconds}</div>
           <div className="mfa-progress-track" aria-hidden="true">
@@ -282,8 +277,6 @@ export default function MfaPage() {
 
         {error && <p className="mfa-feedback mfa-feedback-error">{error}</p>}
         {success && <p className="mfa-feedback mfa-feedback-success">{success}</p>}
-
-        <p className="mfa-footnote">{t.neverStored}</p>
       </main>
     </div>
   );
