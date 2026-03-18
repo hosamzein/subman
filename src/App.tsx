@@ -1143,9 +1143,8 @@ function App() {
     return `https://m.me/${normalized}`;
   }, []);
 
-  const copySubscriberData = useCallback(async (subscription: Subscription) => {
-    const rows: string[] = [];
-    const addRow = (label: string, value: string | number | null | undefined) => {
+  const buildSubscriberShareMessage = useCallback(async (subscription: Subscription) => {
+    const addLine = (bucket: string[], label: string, value: string | number | null | undefined) => {
       if (value === null || value === undefined) {
         return;
       }
@@ -1157,14 +1156,14 @@ function App() {
           return;
         }
 
-        rows.push(`${label}: ${normalized}`);
+        bucket.push(`${label}: ${normalized}`);
         return;
       }
 
-      rows.push(`${label}: ${value}`);
+      bucket.push(`${label}: ${value}`);
     };
 
-    const pushSection = (title: string, sectionRows: string[]) => {
+    const pushSection = (rows: string[], title: string, sectionRows: string[]) => {
       if (!sectionRows.length) {
         return;
       }
@@ -1187,32 +1186,23 @@ function App() {
     const credentialsRows: string[] = [];
     const subscriberRows: string[] = [];
 
-    const addToSection = (section: string[], label: string, value: string | number | null | undefined) => {
-      const sectionBuffer = rows;
-      rows.length = 0;
-      addRow(label, value);
-      section.push(...rows);
-      rows.length = 0;
-      rows.push(...sectionBuffer);
-    };
+    addLine(detailsRows, t.id, subscription.id);
+    addLine(detailsRows, t.service, subscription.service);
+    addLine(detailsRows, t.category, subscription.category || getDefaultCategoryForService(subscription.service) || '');
+    addLine(detailsRows, t.duration, durationLabel);
+    addLine(detailsRows, t.startDate, subscription.startDate);
+    addLine(detailsRows, t.endDate, subscription.endDate);
+    addLine(detailsRows, t.amount, subscription.payment);
+    addLine(detailsRows, t.workspace, subscription.workspace);
 
-    addToSection(detailsRows, t.id, subscription.id);
-    addToSection(detailsRows, t.service, subscription.service);
-    addToSection(detailsRows, t.category, subscription.category || getDefaultCategoryForService(subscription.service) || '');
-    addToSection(detailsRows, t.duration, durationLabel);
-    addToSection(detailsRows, t.startDate, subscription.startDate);
-    addToSection(detailsRows, t.endDate, subscription.endDate);
-    addToSection(detailsRows, t.amount, subscription.payment);
-    addToSection(detailsRows, t.workspace, subscription.workspace);
+    addLine(credentialsRows, t.subscriptionMail, subscription.subscriptionMail);
+    addLine(credentialsRows, t.subscriptionPassword, subscription.subscriptionPassword);
+    addLine(credentialsRows, t.secretId, subscription.twoFactorSecret);
 
-    addToSection(credentialsRows, t.subscriptionMail, subscription.subscriptionMail);
-    addToSection(credentialsRows, t.subscriptionPassword, subscription.subscriptionPassword);
-    addToSection(credentialsRows, t.secretId, subscription.twoFactorSecret);
-
-    addToSection(subscriberRows, t.name, subscription.name);
-    addToSection(subscriberRows, t.email, subscription.email);
-    addToSection(subscriberRows, t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
-    addToSection(subscriberRows, t.facebook, subscription.facebook);
+    addLine(subscriberRows, t.name, subscription.name);
+    addLine(subscriberRows, t.email, subscription.email);
+    addLine(subscriberRows, t.whatsapp, subscription.whatsapp ? `+${subscription.countryCode}${subscription.whatsapp}` : '');
+    addLine(subscriberRows, t.facebook, subscription.facebook);
 
     if (subscription.twoFactorSecret) {
       try {
@@ -1228,29 +1218,47 @@ function App() {
       credentialsRows.push(`Secret Code: ${subscription.twoFactorCode}`);
     }
 
-    rows.length = 0;
-    pushSection(t.subDetail, detailsRows);
-    pushSection(t.subscriptionCredentials, credentialsRows);
-    pushSection(t.subscriberDetail, subscriberRows);
+    const rows: string[] = [];
+    pushSection(rows, t.subDetail, detailsRows);
+    pushSection(rows, t.subscriptionCredentials, credentialsRows);
+    pushSection(rows, t.subscriberDetail, subscriberRows);
 
-    await navigator.clipboard.writeText(rows.join('\n'));
+    return rows.join('\n');
+  }, [t.amount, t.category, t.codeValidFor, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
+
+  const copySubscriberData = useCallback(async (subscription: Subscription) => {
+    const message = await buildSubscriberShareMessage(subscription);
+    await navigator.clipboard.writeText(message);
     setSuccessMessage(t.copyFullData);
     setTimeout(() => setSuccessMessage(''), 2500);
-  }, [t.amount, t.category, t.codeValidFor, t.copyFullData, t.duration, t.email, t.endDate, t.facebook, t.id, t.monthly, t.name, t.quarterly, t.secretId, t.seconds, t.service, t.startDate, t.subDetail, t.subscriberDetail, t.subscriptionCredentials, t.subscriptionMail, t.subscriptionPassword, t.whatsapp, t.workspace, t.yearly]);
+  }, [buildSubscriberShareMessage, t.copyFullData]);
 
-  const sendWhatsApp = (sub: Subscription) => {
+  const sendWhatsApp = useCallback(async (sub: Subscription) => {
     if (!sub.whatsapp) {
       return;
     }
 
-    const message = waMessage
-      .replace('{name}', sub.name)
-      .replace('{service}', sub.service)
-      .replace('{date}', formatDateDisplay(sub.endDate));
+    const message = await buildSubscriberShareMessage(sub);
     const fullNumber = `${sub.countryCode}${sub.whatsapp.replace(/^0+/, '')}`;
     const url = `https://api.whatsapp.com/send?phone=${fullNumber}&text=${encodeURIComponent(message)}`;
     window.open(url, '_blank');
-  };
+  }, [buildSubscriberShareMessage]);
+
+  const sendMessenger = useCallback(async (sub: Subscription) => {
+    const messengerUrl = resolveMessengerUrl(sub.facebook);
+
+    if (!messengerUrl) {
+      return;
+    }
+
+    const message = await buildSubscriberShareMessage(sub);
+    const separator = messengerUrl.includes('?') ? '&' : '?';
+    window.open(`${messengerUrl}${separator}text=${encodeURIComponent(message)}`, '_blank');
+
+    await navigator.clipboard.writeText(message);
+    setSuccessMessage(t.copyFullData);
+    setTimeout(() => setSuccessMessage(''), 2500);
+  }, [buildSubscriberShareMessage, resolveMessengerUrl, t.copyFullData]);
 
   const getStatus = useCallback((endDate: string): SubscriptionStatus => {
     const end = new Date(endDate);
@@ -2058,7 +2066,7 @@ function App() {
                                 <td style={{ textAlign: 'center', whiteSpace: 'nowrap' }}>
                                   <div className="subscriber-actions">
                                     {s.whatsapp && (
-                                      <button onClick={() => sendWhatsApp(s)} title={t.whatsapp} aria-label={t.whatsapp}>
+                                      <button onClick={() => { void sendWhatsApp(s); }} title={t.whatsapp} aria-label={t.whatsapp}>
                                         <span className="brand-icon brand-icon-whatsapp" aria-hidden="true">
                                           <svg viewBox="0 0 32 32" focusable="false">
                                             <path d="M16 3.2A12.8 12.8 0 0 0 4.6 21.9L3.1 28.9l7.2-1.4A12.8 12.8 0 1 0 16 3.2Zm0 23.2a10.4 10.4 0 0 1-5.3-1.4l-.4-.3-4.2.8.8-4.1-.3-.4A10.4 10.4 0 1 1 16 26.4Zm5.7-7.8c-.3-.2-1.8-.9-2-1-.3-.1-.5-.2-.8.2-.2.3-.9 1-.9 1.1-.2.2-.3.2-.6.1a8.5 8.5 0 0 1-2.5-1.6 9.2 9.2 0 0 1-1.7-2.1c-.2-.3 0-.5.1-.6l.4-.5c.2-.2.2-.4.3-.6.1-.2 0-.4 0-.6 0-.2-.8-2-1.1-2.7-.3-.7-.6-.6-.8-.6h-.7a1.4 1.4 0 0 0-1 .5 4.2 4.2 0 0 0-1.3 3.1c0 1.8 1.3 3.5 1.5 3.8.2.2 2.7 4.2 6.7 5.7.9.4 1.7.6 2.2.8.9.3 1.8.3 2.5.2.7-.1 2.2-.9 2.5-1.8.3-.8.3-1.6.2-1.8-.1-.1-.3-.2-.6-.4Z" />
@@ -2067,7 +2075,7 @@ function App() {
                                       </button>
                                     )}
                                     {resolveMessengerUrl(s.facebook) && (
-                                      <button onClick={() => window.open(resolveMessengerUrl(s.facebook), '_blank')} title={t.openMessenger} aria-label={t.openMessenger}>
+                                      <button onClick={() => { void sendMessenger(s); }} title={t.openMessenger} aria-label={t.openMessenger}>
                                         <span className="brand-icon brand-icon-messenger" aria-hidden="true">
                                           <svg viewBox="0 0 32 32" focusable="false">
                                             <path d="M16 3.2C9 3.2 3.4 8.4 3.4 14.9c0 3.8 1.9 7.2 4.9 9.4v4.5l4.3-2.4c1.1.3 2.2.4 3.4.4 7 0 12.6-5.2 12.6-11.7S23 3.2 16 3.2Zm1.3 15.7-3.2-3.4-6.1 3.4 6.8-7.2 3.2 3.4 6.1-3.4-6.8 7.2Z" />
